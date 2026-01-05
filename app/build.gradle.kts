@@ -44,6 +44,7 @@ android {
 
     buildFeatures {
         compose = true
+        viewBinding = true
     }
 }
 
@@ -77,4 +78,16 @@ dependencies {
     // Debug
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
+
+    // Camera and QR Code Utility
+    implementation("androidx.camera:camera-camera2:1.5.2")
+    implementation("androidx.camera:camera-lifecycle:1.5.2")
+    implementation("androidx.camera:camera-view:1.5.2")
+    implementation("com.google.mlkit:barcode-scanning:17.2.0")
+
+
+    implementation("com.google.accompanist:accompanist-permissions:0.34.0")
+
+
+
 }

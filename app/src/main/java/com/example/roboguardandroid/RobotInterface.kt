@@ -7,7 +7,7 @@ class RobotInterface {
 
     suspend internal fun init_robot(rob_ip: String){
         this.robot_ip = robot_ip
-        val rob_API = RobotAPI(rob_ip)
+        val rob_API = RobotAPI()
         if (rob_API.pingRobot() == "alive"){
             this.paired = true
             this.robot_API = rob_API

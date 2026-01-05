@@ -15,6 +15,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import com.example.roboguardandroid.ui.theme.RoboGuardAndroidTheme
 import android.util.Log
+import androidx.activity.compose.BackHandler
+import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -32,6 +34,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material3.Icon
+import androidx.compose.ui.text.style.TextAlign
+
 
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.Button
@@ -90,10 +94,12 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         // Define the API client once, outside the Composable content
-        val apiRob = RobotAPI(robotIP = "10.0.2.16")
+        val apiRob = RobotAPI()
 
 
         setContent {
+
+            if (apiRob.isCoupled ) {
 
                 StartUI()
 
@@ -103,21 +109,81 @@ class MainActivity : ComponentActivity() {
                         try {
                             val response = apiRob.pingRobot()
                             Log.d("RobotAPI", "Ping response: $response")
-                            val response2 = apiRob.dataToRobot("Geh nicht ins Wohnzimmer")
-                            Log.d("RobotAPI", "Data response: $response2")
                         } catch (e: Exception) {
                             Log.e("RobotAPI", "API call failed", e)
                         }
                     }
                 }
+            }
+
+            else {
+                QRscanUI()
+            }
+
+        }
+        }
+    }
 
 
+
+@Composable
+fun QRscanUI(){
+
+    var showScanner by remember { mutableStateOf(false) }
+    var scannedQr by remember { mutableStateOf<String?>(null) }
+
+    Box(
+        modifier = Modifier.fillMaxSize()
+    ) {
+        HeaderAppName()
+        Text("You need to scan the QR Code on your robot to pair your device." ,
+            fontSize = 40.sp, fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+
+            modifier = Modifier
+                .padding(top= 26.dp, bottom = 40.dp)
+                .fillMaxWidth()
+                .padding(20.dp)
+                .align(Alignment.Center),
+            textAlign = TextAlign.Center
+        )
+        Button(
+            onClick = {
+                Log.d("Camera", "Starting QR Code Scanner")
+                showScanner = true
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+                .align(Alignment.BottomCenter)
+
+        ) {
+            Text(
+                text = "Scan for QR Code!",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
+        }
+        if (showScanner) {
+
+            BackHandler {
+                showScanner = false
+            }
+
+            CameraPermissionWrapper { qrValue ->
+                Log.d("QR", qrValue)
+
+                scannedQr = qrValue
+                showScanner = false // Scanner wieder schließen
             }
         }
     }
+}
+
+
 @Composable
 fun StartUI() {
-    val mainActivity = LocalContext.current as MainActivity
+    val mainActivity = LocalActivity.current as MainActivity
 
     // Gesamt-Switches für Sensoren
     val sensorStates = remember {
@@ -213,7 +279,7 @@ fun StartUI() {
 @Composable
 fun HeaderAppName(){
         Text(
-            text = "RoboGuard \n\nPrivacy Settings", fontSize = 40.sp, fontWeight = FontWeight.Bold, color = Color.White,
+            text = "RoboGuard \nPrivacy Settings", fontSize = 40.sp, fontWeight = FontWeight.Bold, color = Color.White,
 
             modifier = Modifier
                 .padding(top= 26.dp, bottom = 40.dp)
@@ -514,19 +580,9 @@ fun syncRobot(sensorStates: MutableMap<String, Boolean>,
     Log.d("StartUI", "Settings JSON: $json")
     saveSettingsLocally(context = context, jsonString = json)
 }
-
-fun toggle_sensor(){
-
-
-}
-
 fun toggle_setting() {
 }
 
-fun toggle_sensor_room(){
-
-
-}
 
 fun createSettingsJson(
     sensorStates: Map<String, Boolean>,

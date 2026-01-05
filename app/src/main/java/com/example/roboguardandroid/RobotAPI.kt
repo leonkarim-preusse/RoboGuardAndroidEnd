@@ -12,7 +12,10 @@ import kotlinx.coroutines.withContext
 import javax.net.ssl.HostnameVerifier
 import io.ktor.client.call.body
 
-class RobotAPI(protected var robotIP: String) {
+class RobotAPI() {
+
+    internal var isCoupled: Boolean = false
+    private var robotIP: String? = null
     val client = HttpClient(Android) {
         install(ContentNegotiation) {
             json()
@@ -25,15 +28,26 @@ class RobotAPI(protected var robotIP: String) {
         }
     }
 
-    suspend internal fun pingRobot(): String = withContext(Dispatchers.IO) {
-        client.get("https://$robotIP:8443/ping").body()
+    internal suspend fun pingRobot(): String = withContext(Dispatchers.IO) {
+        requireCoupled()
+            client.get("https://$robotIP:8443/ping").body()
     }
 
-    suspend internal fun dataToRobot(data: String) {
+    internal suspend fun dataToRobot(data: String): HttpResponse {
+        requireCoupled()
         val response: HttpResponse = client.post("https://$robotIP:8443/save") {
             contentType(ContentType.Text.Plain)
             setBody(data)
+
+        }
+        return response
+    }
+
+    internal fun requireCoupled() {
+        if (!isCoupled) {
+            throw IllegalStateException("No Robot Coupled")
         }
     }
+
 }
 
