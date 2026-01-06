@@ -1,5 +1,6 @@
 package com.example.roboguardandroid
 
+import android.util.Log
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
 import androidx.camera.core.CameraSelector
@@ -14,6 +15,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -36,6 +39,16 @@ import com.google.mlkit.vision.common.InputImage
 
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import org.json.JSONObject
+
+data class QrData(
+    val publicKey: String,
+    val otp: String,
+    val ip: String,
+)
 
 class QrCodeAnalyzer(
     private val onQrCodeScanned: (String) -> Unit
@@ -107,7 +120,6 @@ fun QrScannerScreen(
                         if (!scanned) {
                             scanned = true
                             onQrScanned(value)
-
                             provider.unbindAll()
                         }
                     }
@@ -126,6 +138,7 @@ fun QrScannerScreen(
         },
         modifier = Modifier.fillMaxSize()
     )
+
 
 }
 @OptIn(ExperimentalPermissionsApi::class)
@@ -153,6 +166,55 @@ fun CameraPermissionWrapper(
                 Text("Camera permission required")
             }
         }
+    }
+}
+
+fun verify_QR(content: String?): Boolean {
+    if (content == null) return false
+
+    return try {
+        parseQR(content)
+        true
+    } catch (e: Exception) {
+        false
+    }
+}
+
+
+fun parseQR(content: String?): QrData {
+    val json = JSONObject(content)
+
+    val publicKey = json.getString("publickey")
+    val otp = json.getString("otp")
+    val ip = json.getString( "ip")
+
+    require(ip.isNotBlank()) {"Missing IP"}
+    require(publicKey.isNotBlank()) { "Public key empty" }
+    require(otp.isNotBlank()) { "OTP empty" }
+
+    return QrData(publicKey, otp, ip)
+}
+
+
+@Composable
+fun isQRvalidScreen(isValid:Boolean) {
+    var msg: String = "Please try to scan again! QR Code could not be verified."
+    if (isValid) {
+        msg = "Successfully scanned QR Code! Attempting to pair with robot!"
+    }
+    Box(modifier = Modifier.fillMaxSize()) {
+    HeaderAppName()
+    Text(
+        msg,
+        fontSize = 40.sp, fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+
+        modifier = Modifier
+            .padding(top = 26.dp, bottom = 40.dp)
+            .fillMaxWidth()
+            .padding(20.dp)
+            .align(Alignment.Center),
+        textAlign = TextAlign.Center
+    )
     }
 }
 
