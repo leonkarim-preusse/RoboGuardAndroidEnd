@@ -28,6 +28,7 @@ import java.security.cert.CertificateFactory
 import javax.net.ssl.HostnameVerifier
 import javax.net.ssl.SSLContext
 import javax.net.ssl.TrustManagerFactory
+import android.util.Log
 
 
 @Serializable
@@ -61,6 +62,16 @@ class RobotAPI(private val context: Context) {
             setupHttpClient(savedCert)
             isCoupled = true
         }
+    }
+
+    fun uncoupleRobot(context: Context) {
+        val sharedPref = context.getSharedPreferences("RoboGuardPrefs", Context.MODE_PRIVATE)
+        with(sharedPref.edit()) {
+            remove("robot_ip")
+            isCoupled = false
+            apply()
+        }
+        Log.i("Uncouple", "Erfolgreich entkoppelt. IP wurde gelöscht.")
     }
 
     private fun setupHttpClient(certBase64: String) {

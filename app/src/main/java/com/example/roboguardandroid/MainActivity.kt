@@ -58,6 +58,10 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.material3.Scaffold
 
 
 @Serializable
@@ -92,17 +96,17 @@ class MainActivity : ComponentActivity() {
         setContent {
             var isCoupled by remember { mutableStateOf(apiRob.isCoupled) }
 
-            if (isCoupled ) {
-
-                StartUI()
-
-
-                LaunchedEffect(key1 = true) {
+            Scaffold(
+                modifier = Modifier.fillMaxSize()
+            ) { innerPadding ->
+                // innerPadding enthält den Platz für Status- und Navigationsleiste
+                Box(modifier = Modifier.padding(innerPadding)) {
+                    if (isCoupled) {
+                        StartUI(apiRob, onUncouple = { isCoupled = false })
+                    } else {
+                        QRscanUI(apiRob) { isCoupled = true }
+                    }
                 }
-            }
-
-            else {
-                QRscanUI(apiRob) {isCoupled = true}
             }
 
         }
@@ -194,9 +198,9 @@ fun QRscanUI(apiRob: RobotAPI, onPairingComplete: () -> Unit) {
 
 
 @Composable
-fun StartUI() {
+fun StartUI(apiRob: RobotAPI, onUncouple: () -> Unit) {
     val mainActivity = LocalActivity.current as MainActivity
-
+    val context = LocalContext.current
     // Gesamt-Switches für Sensoren
     val sensorStates = remember {
         mutableStateMapOf(
@@ -262,8 +266,30 @@ fun StartUI() {
                 }
             }
 
-            // Sync Button
             val context = LocalContext.current
+
+            //Uncouple Button
+            Row() {
+                Button(
+                    onClick = {
+                        apiRob.uncoupleRobot(context) // Löscht IP in Prefs
+                        onUncouple() // Triggert den UI-Wechsel zurück zum Scanner
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Red) // Optional: Rot zur Warnung
+                ) {
+                    Text(
+                        text = "Pair again / Uncouple",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
+            }
+
+
             Button(
                 onClick = {
                     Log.d("StartUI", "Sensor States: $sensorStates")
@@ -289,18 +315,24 @@ fun StartUI() {
 }
 
 @Composable
-fun HeaderAppName(){
+fun HeaderAppName() {
+    val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color(0xFF1A73E8))
+            .padding(top = statusBarPadding)
+    ) {
         Text(
-            text = "RoboGuard \nPrivacy Settings", fontSize = 40.sp, fontWeight = FontWeight.Bold, color = Color.White,
-
-            modifier = Modifier
-                .padding(top= 26.dp, bottom = 40.dp)
-                .fillMaxWidth()
-                .background(Color(0xFF1A73E8))
-                .padding(20.dp)
-
+            text = "RoboGuard\nPrivacy Settings",
+            fontSize = 42.sp,           // Etwas kleiner als 40, damit mehr Platz bleibt
+            lineHeight = 50.sp,         // Expliziter Zeilenabstand (wichtig!)
+            fontWeight = FontWeight.Bold,
+            color = Color.White,
+            modifier = Modifier.padding(20.dp)
         )
-
+    }
 }
 
 @Composable
