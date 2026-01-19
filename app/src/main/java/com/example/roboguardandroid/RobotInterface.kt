@@ -1,13 +1,15 @@
 package com.example.roboguardandroid
 
+import android.content.Context
+
 class RobotInterface {
     var paired: Boolean = false
     var robot_ip: String? = null
     var robot_API: RobotAPI? = null
 
-    suspend internal fun init_robot(rob_ip: String){
+    suspend internal fun init_robot(rob_ip: String, context: Context){
         this.robot_ip = robot_ip
-        val rob_API = RobotAPI()
+        val rob_API = RobotAPI(context)
         if (rob_API.pingRobot() == "alive"){
             this.paired = true
             this.robot_API = rob_API

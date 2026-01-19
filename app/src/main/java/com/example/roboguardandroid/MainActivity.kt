@@ -77,38 +77,32 @@ data class RoomSettings(
 
 class MainActivity : ComponentActivity() {
 
-    val apiRob = RobotAPI()
+    lateinit var apiRob: RobotAPI
     var rooms = mutableListOf<room>(room("Wohnzimmer"), room("Schlafzimmer"), room("Badezimmer"), room("Andere Zimmer"))
     // setting name and list: list contains: [0] = buttonname, [1] = action
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        apiRob = RobotAPI(this)
 
         // Define the API client once, outside the Composable content
 
 
 
         setContent {
+            var isCoupled by remember { mutableStateOf(apiRob.isCoupled) }
 
-            if (apiRob.isCoupled ) {
+            if (isCoupled ) {
 
                 StartUI()
 
 
                 LaunchedEffect(key1 = true) {
-                    launch { // Launch a new coroutine within the scope provided by LaunchedEffect
-                        try {
-                            val response = apiRob.pingRobot()
-                            Log.d("RobotAPI", "Ping response: $response")
-                        } catch (e: Exception) {
-                            Log.e("RobotAPI", "API call failed", e)
-                        }
-                    }
                 }
             }
 
             else {
-                QRscanUI(apiRob: RobotAPI)
+                QRscanUI(apiRob) {isCoupled = true}
             }
 
         }
@@ -118,7 +112,7 @@ class MainActivity : ComponentActivity() {
 
 
 @Composable
-fun QRscanUI(apiRob: RobotAPI){
+fun QRscanUI(apiRob: RobotAPI, onPairingComplete: () -> Unit) {
 
     var showScanner by remember { mutableStateOf(false) }
     var scannedQr by remember { mutableStateOf<String?>(null) }
@@ -184,8 +178,9 @@ fun QRscanUI(apiRob: RobotAPI){
             val otp: String = QRdata.otp
             val ip: String = QRdata.ip
 
-            apiRob.robotIP = ip
-            Log.i("RobotAPI""Set robot IP to $apiRob.robotIP ")
+            apiRob.completePairing(ip, publicKey)
+            onPairingComplete()
+            Log.i("RobotAPI","Set robot IP to $apiRob.robotIP ")
         }
         else{
             LaunchedEffect(Unit) {
