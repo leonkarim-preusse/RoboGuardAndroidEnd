@@ -29,11 +29,14 @@ import javax.net.ssl.HostnameVerifier
 import javax.net.ssl.SSLContext
 import javax.net.ssl.TrustManagerFactory
 import android.util.Log
+import io.ktor.http.HttpStatusCode
+import javax.crypto.Mac
+import javax.crypto.spec.SecretKeySpec
 
 
 @Serializable
-data class AuthResponse(
-    val id: Int,
+data class AuthCred(
+    val id: Long,
     val secret: String
 )
 
@@ -57,20 +60,19 @@ class RobotAPI(private val context: Context) {
     init {
         val savedIp = sharedPrefs.getString("robot_ip", null)
         val savedCert = sharedPrefs.getString("robot_cert", null)
+        val hasSecret = sharedPrefs.contains("shared_secret")
         if (savedIp != null && savedCert != null) {
             robotIP = savedIp
             setupHttpClient(savedCert)
-            isCoupled = true
+            isCoupled = hasSecret
         }
     }
 
-    fun uncoupleRobot(context: Context) {
-        val sharedPref = context.getSharedPreferences("RoboGuardPrefs", Context.MODE_PRIVATE)
-        with(sharedPref.edit()) {
-            remove("robot_ip")
-            isCoupled = false
-            apply()
-        }
+    fun uncoupleRobot() {
+        sharedPrefs.edit().clear().apply() // Löscht IP, Cert UND Secret
+        this.robotIP = null
+        this.client = null
+        this.isCoupled = false
         Log.i("Uncouple", "Erfolgreich entkoppelt. IP wurde gelöscht.")
     }
 
@@ -137,23 +139,51 @@ class RobotAPI(private val context: Context) {
 
     internal suspend fun dataToRobot(data: String): HttpResponse = withContext(Dispatchers.IO) {
         requireCoupled()
-        // FIXED: Added non-null assertion !!. (safe because requireCoupled checked it)
-        client!!.post("https://$robotIP:8443/save") {
+
+        val signature = createSignature(data, getSharedSecret() ?: "")
+
+        val response = client!!.post("https://$robotIP:8443/save") {
+            headers {
+                append("X-Client-Id", getId().toString())
+                append("X-Client-Secret", signature)
+            }
             contentType(ContentType.Text.Plain)
             setBody(data)
         }
+
+        response
     }
 
-    internal suspend fun secrethandshake(otp: String): AuthResponse = withContext(Dispatchers.IO) {
+    internal suspend fun secrethandshake(otp: String): Boolean = withContext(Dispatchers.IO) {
         requireCoupled()
-        // FIXED: Added non-null assertion !!.
-        val response: HttpResponse = client!!.post("https://$robotIP:8443/otp_auth") {
-            headers {
-                append("X-Client-otp", otp)
-                append("X-Client-name", getDeviceName()) // Context no longer needed here
+        try {
+            val response: HttpResponse = client!!.post("https://$robotIP:8443/otp_auth") {
+                headers {
+                    append("X-Client-otp", otp)
+                    append("X-Client-name", getDeviceName())
+                }
             }
+            if (response.status == HttpStatusCode.OK) {
+                val creds = response.body<AuthCred>()
+
+                sharedPrefs.edit()
+                    .putString("shared_secret", creds.secret)
+                    .putLong("client_id", creds.id)
+                    .apply()
+
+                isCoupled = true // Jetzt sind wir wirklich "coupled" (mit Secret!)
+                Log.i("Auth", "Shared Secret securely stored")
+                true
+            } else {
+                Log.w("Auth", "Authentification failed ${response.status}")
+                uncoupleRobot()
+                false
+            }
+        } catch (e: Exception) {
+            Log.e("Auth", "Network Error in handshake ${e.message}")
+            uncoupleRobot()
+            false
         }
-        Json.decodeFromString(response.bodyAsText())
     }
 
     internal fun requireCoupled() {
@@ -168,5 +198,20 @@ class RobotAPI(private val context: Context) {
             context.contentResolver,
             Settings.Global.DEVICE_NAME
         ) ?: "Unknown Device"
+    }
+    fun getSharedSecret(): String? {
+        return sharedPrefs.getString("shared_secret", null)
+    }
+
+    fun getId(): Long? {
+        if (!sharedPrefs.contains("client_id")) return null
+        return sharedPrefs.getLong("client_id", -1L)
+    }
+    private fun createSignature(payload: String, secret: String): String {
+        val hmacKey = SecretKeySpec(secret.toByteArray(), "HmacSHA256")
+        val mac = Mac.getInstance("HmacSHA256")
+        mac.init(hmacKey)
+        val bytes = mac.doFinal(payload.toByteArray())
+        return android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
     }
 }

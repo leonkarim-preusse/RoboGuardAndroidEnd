@@ -62,6 +62,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.material3.Scaffold
+import androidx.compose.runtime.rememberCoroutineScope
 
 
 @Serializable
@@ -175,16 +176,44 @@ fun QRscanUI(apiRob: RobotAPI, onPairingComplete: () -> Unit) {
     }
     if (showQRValidation){
         var isQRvalid by remember {mutableStateOf(verify_QR(scannedQr))}
+        var showErrorDialog by remember { mutableStateOf(false) }
         isQRvalidScreen(isQRvalid)
         if (isQRvalid) {
-            val QRdata = parseQR(scannedQr)
-            val publicKey: String = QRdata.publicKey
-            val otp: String = QRdata.otp
-            val ip: String = QRdata.ip
+            LaunchedEffect(scannedQr) {
+                val QRdata = parseQR(scannedQr)
+                val publicKey: String = QRdata.publicKey
+                val otp: String = QRdata.otp
+                val ip: String = QRdata.ip
 
-            apiRob.completePairing(ip, publicKey)
-            onPairingComplete()
-            Log.i("RobotAPI","Set robot IP to $apiRob.robotIP ")
+                apiRob.completePairing(ip, publicKey)
+                Log.i("RobotAPI", "Set robot IP to $apiRob.robotIP, attempting Secret Handshake ")
+                val success = apiRob.secrethandshake(otp)
+
+                if (success) {
+                    // Success UI trigger
+                    onPairingComplete()
+                } else {
+                    // Error dialog trigger
+                    showErrorDialog = true
+                }
+
+            }
+            if (showErrorDialog) {
+                androidx.compose.material3.AlertDialog(
+                    onDismissRequest = { showErrorDialog = false },
+                    confirmButton = {
+                        Button(onClick = { showErrorDialog = false }) {
+                            Text("OK")
+                        }
+                    },
+                    title = { Text("Oops something went wrong when pairing with your robot!") },
+                    text = { Text("Please try scanning the QR Code again.") },
+                    containerColor = Color.White,
+                    titleContentColor = Color.Red
+                )
+            }
+
+
         }
         else{
             LaunchedEffect(Unit) {
@@ -201,6 +230,7 @@ fun QRscanUI(apiRob: RobotAPI, onPairingComplete: () -> Unit) {
 fun StartUI(apiRob: RobotAPI, onUncouple: () -> Unit) {
     val mainActivity = LocalActivity.current as MainActivity
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     // Gesamt-Switches für Sensoren
     val sensorStates = remember {
         mutableStateMapOf(
@@ -272,7 +302,7 @@ fun StartUI(apiRob: RobotAPI, onUncouple: () -> Unit) {
             Row() {
                 Button(
                     onClick = {
-                        apiRob.uncoupleRobot(context) // Löscht IP in Prefs
+                        apiRob.uncoupleRobot() // Löscht IP in Prefs
                         onUncouple() // Triggert den UI-Wechsel zurück zum Scanner
                     },
                     modifier = Modifier
@@ -293,11 +323,13 @@ fun StartUI(apiRob: RobotAPI, onUncouple: () -> Unit) {
             Button(
                 onClick = {
                     Log.d("StartUI", "Sensor States: $sensorStates")
+                    scope.launch{
                     syncRobot(context = context, sensorStates = sensorStates,
                         rooms = mainActivity.rooms,
                         situationenErkennen = situationenErkennenEnabled,
                         objekteVerpixeln = objekteVerpixelnEnabled,
-                        sleepTime = selectedTime)
+                        sleepTime = selectedTime, apiRob = apiRob)
+                        }
                 },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -605,15 +637,17 @@ fun SensorCategory(
 
 
 
-fun syncRobot(sensorStates: MutableMap<String, Boolean>,
-                rooms: List<room>,
-                situationenErkennen: Boolean,
-                objekteVerpixeln: Boolean,
-                sleepTime: String,
-                context: Context
-    ) {
-
+suspend fun syncRobot(
+    sensorStates: Map<String, Boolean>,
+    rooms: List<room>,
+    situationenErkennen: Boolean,
+    objekteVerpixeln: Boolean,
+    sleepTime: String,
+    context: Context,
+    apiRob: RobotAPI
+) {
     Log.d("RobotAPI", "Attempting to sync with your robot")
+
     val json = createSettingsJson(
         sensorStates = sensorStates,
         rooms = rooms,
@@ -621,8 +655,17 @@ fun syncRobot(sensorStates: MutableMap<String, Boolean>,
         objekteVerpixeln = objekteVerpixeln,
         sleepTime = parseSleepTimeToSeconds(sleepTime).toString()
     )
+
     Log.d("StartUI", "Settings JSON: $json")
-    saveSettingsLocally(context = context, jsonString = json)
+
+    try {
+        val response = apiRob.dataToRobot(json)
+        if (response.status.value in 200..299) {
+            Log.d("RobotAPI", "Sync succesfull!")
+        }
+    } catch (e: Exception) {
+        Log.e("RobotAPI", "Sync failed: ${e.message}")
+    }
 }
 fun toggle_setting() {
 }
