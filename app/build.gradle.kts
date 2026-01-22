@@ -16,7 +16,7 @@ android {
     defaultConfig {
         applicationId = "com.example.roboguardandroid"
         minSdk = 24
-        targetSdk = 36
+        targetSdk = 35
         versionCode = 1
         versionName = "1.0"
 
@@ -62,11 +62,13 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.0")
 
     // KTOR
+    val ktor_version = "2.3.7"
     implementation("io.ktor:ktor-client-core:2.3.7")
     implementation("io.ktor:ktor-client-cio:2.3.7")
     implementation("io.ktor:ktor-client-android:2.3.7")
     implementation("io.ktor:ktor-client-content-negotiation:2.3.7")
     implementation("io.ktor:ktor-serialization-kotlinx-json:2.3.7")
+    implementation("io.ktor:ktor-client-okhttp:${ktor_version}")
 
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
 
@@ -86,6 +88,7 @@ dependencies {
     implementation("androidx.camera:camera-lifecycle:1.5.2")
     implementation("androidx.camera:camera-view:1.5.2")
     implementation("com.google.mlkit:barcode-scanning:17.2.0")
+    implementation("org.slf4j:slf4j-android:1.7.36")
 
 
     implementation("com.google.accompanist:accompanist-permissions:0.34.0")

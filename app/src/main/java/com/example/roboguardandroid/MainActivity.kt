@@ -186,7 +186,12 @@ fun QRscanUI(apiRob: RobotAPI, onPairingComplete: () -> Unit) {
                 val ip: String = QRdata.ip
 
                 apiRob.completePairing(ip, publicKey)
-                Log.i("RobotAPI", "Set robot IP to $apiRob.robotIP, attempting Secret Handshake ")
+                Log.i("RobotAPI", "Set robot IP to $apiRob.robotIP, attempting ping ")
+                try{
+                    apiRob.pingRobot()
+                }catch(e: Exception){
+                    Log.e("Server", "Ping failed with error: $e")
+                }
                 val success = apiRob.secrethandshake(otp)
 
                 if (success) {
@@ -319,12 +324,12 @@ fun StartUI(apiRob: RobotAPI, onUncouple: () -> Unit) {
                 }
             }
 
-
+            var didSync by remember{ mutableStateOf(false)}
             Button(
                 onClick = {
                     Log.d("StartUI", "Sensor States: $sensorStates")
                     scope.launch{
-                    syncRobot(context = context, sensorStates = sensorStates,
+                    didSync = syncRobot(context = context, sensorStates = sensorStates,
                         rooms = mainActivity.rooms,
                         situationenErkennen = situationenErkennenEnabled,
                         objekteVerpixeln = objekteVerpixelnEnabled,
@@ -342,9 +347,26 @@ fun StartUI(apiRob: RobotAPI, onUncouple: () -> Unit) {
                     color = Color.White
                 )
             }
+            if (didSync) {
+                androidx.compose.material3.AlertDialog(
+                    onDismissRequest = { didSync = false },
+                    confirmButton = {
+                        Button(onClick = { didSync = false }) {
+                            Text("OK")
+                        }
+                    },
+                    title = { Text("Sync Successful!") },
+                    text = { Text("Your privacy settings were successfully saved on your robot") },
+                    containerColor = Color.White,
+                    titleContentColor = Color.Red
+                )
+            }
+
+            }
+
         }
     }
-}
+
 
 @Composable
 fun HeaderAppName() {
@@ -424,7 +446,7 @@ fun create_setting_category(name: String, content: @Composable () -> Unit) {
                 modifier = Modifier.weight(1f)
             )
 
-            // Pfeil-Icon
+            // arrow icon
             Icon(
                 imageVector = Icons.Default.KeyboardArrowDown,
                 contentDescription = if (expanded) "Collapse" else "Expand",
@@ -576,12 +598,10 @@ fun SensorCategory(
                         onCheckedChange = { newValue ->
                             sensorStates[sensorName] = newValue
                             if (!newValue) {
-                                // Hauptswitch aus: alle Raum-Switches ausstellen
                                 rooms.forEach { room ->
                                     room.update_sensors(sensorName, false)
                                 }
                             }
-                            // Hauptswitch an: Räume bleiben unverändert
                         }
                     )
 
@@ -599,7 +619,6 @@ fun SensorCategory(
                 if (sensorExpanded) {
                     Column(modifier = Modifier.padding(start = 40.dp)) {
                         rooms.forEach { room ->
-                            // Jeder Raum-Switch bekommt einen eigenen mutableState
                             var checked by remember { mutableStateOf(room.sensors[sensorName] ?: true) }
 
                             Row(
@@ -619,7 +638,6 @@ fun SensorCategory(
                                 Text(room.name, fontSize = 14.sp)
                             }
 
-                            // Wenn Hauptswitch ausgeschaltet ist, Raum-Switch automatisch aus
                             if (!sensorEnabled && checked) {
                                 checked = false
                             }
@@ -632,11 +650,6 @@ fun SensorCategory(
 }
 
 
-
-
-
-
-
 suspend fun syncRobot(
     sensorStates: Map<String, Boolean>,
     rooms: List<room>,
@@ -645,7 +658,7 @@ suspend fun syncRobot(
     sleepTime: String,
     context: Context,
     apiRob: RobotAPI
-) {
+):Boolean {
     Log.d("RobotAPI", "Attempting to sync with your robot")
 
     val json = createSettingsJson(
@@ -661,11 +674,12 @@ suspend fun syncRobot(
     try {
         val response = apiRob.dataToRobot(json)
         if (response.status.value in 200..299) {
-            Log.d("RobotAPI", "Sync succesfull!")
+            Log.d("RobotAPI", "Sync successful!")
         }
     } catch (e: Exception) {
         Log.e("RobotAPI", "Sync failed: ${e.message}")
     }
+    return true
 }
 fun toggle_setting() {
 }
