@@ -1,6 +1,5 @@
 package com.example.roboguardandroid
 
-
 import android.content.Context
 import android.os.Bundle
 import android.util.Log
@@ -65,26 +64,32 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.rememberCoroutineScope
 
 
-@Serializable
-data class AppSettings(
-    val sensors: Map<String, Boolean>,               // Gesamt-Switches
-    val rooms: List<RoomSettings>,                   // Räume + Sensoren
-    val situationalSettings: Map<String, Boolean>,   // Situationen erkennen, Objekte verpixeln
-    val sleepTime: String                             // Sleep-Zeit
-)
 
 @Serializable
+
+data class AppSettings(
+    val sensors: Map<String, Boolean>, // Gesamt-Switches
+    val rooms: List<RoomSettings>, // Räume + Sensoren
+    val situationalSettings: Map<String, Boolean>, // Situationen erkennen, Objekte verpixeln
+    val sleepTime: String // Sleep-Zeit
+)
+
+
+@Serializable
+
 data class RoomSettings(
     val name: String,
     val sensors: Map<String, Boolean>
 )
 
 
+
 class MainActivity : ComponentActivity() {
 
     lateinit var apiRob: RobotAPI
     var rooms = mutableListOf<room>(room("Living Room"), room("Bedroom"), room("Bath"), room("Other Rooms"))
-    // setting name and list: list contains: [0] = buttonname, [1] = action
+        // setting name and list: list contains: [0] = buttonname, [1] = action
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -104,11 +109,9 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
-
-        }
         }
     }
-
+}
 
 
 @Composable
@@ -143,7 +146,6 @@ fun QRscanUI(apiRob: RobotAPI, onPairingComplete: () -> Unit) {
                     .fillMaxWidth()
                     .padding(16.dp)
                     .align(Alignment.BottomCenter)
-
             ) {
                 Text(
                     text = "Scan for QR Code!",
@@ -164,12 +166,13 @@ fun QRscanUI(apiRob: RobotAPI, onPairingComplete: () -> Unit) {
                     scannedQr = qrValue
                     showScanner = false // Scanner wieder schließen
                     showQRValidation = true
-
                 }
             }
         }
     }
+
     if (showQRValidation){
+
         var isQRvalid by remember {mutableStateOf(verify_QR(scannedQr))}
         var showErrorDialog by remember { mutableStateOf(false) }
         isQRvalidScreen(isQRvalid)
@@ -188,21 +191,17 @@ fun QRscanUI(apiRob: RobotAPI, onPairingComplete: () -> Unit) {
                     Log.e("Server", "Ping failed with error: $e")
                 }
                 val success = apiRob.secrethandshake(otp)
-
                 if (success) {
-                    // Success UI trigger
                     onPairingComplete()
                 } else {
-                    // Error dialog trigger
                     showErrorDialog = true
                 }
-
             }
             if (showErrorDialog) {
                 androidx.compose.material3.AlertDialog(
                     onDismissRequest = { showErrorDialog = false; showQRValidation= false },
                     confirmButton = {
-                        Button(onClick = { showErrorDialog = false;  showQRValidation= false  }) {
+                        Button(onClick = { showErrorDialog = false; showQRValidation= false }) {
                             Text("OK")
                         }
                     },
@@ -212,9 +211,8 @@ fun QRscanUI(apiRob: RobotAPI, onPairingComplete: () -> Unit) {
                     titleContentColor = Color.Red
                 )
             }
-
-
         }
+
         else{
             LaunchedEffect(Unit) {
                 delay(5000)
@@ -222,11 +220,9 @@ fun QRscanUI(apiRob: RobotAPI, onPairingComplete: () -> Unit) {
             }
         }
     }
-
 }
-
-
 @Composable
+
 fun StartUI(apiRob: RobotAPI, onUncouple: () -> Unit) {
     val mainActivity = LocalActivity.current as MainActivity
     val context = LocalContext.current
@@ -234,11 +230,11 @@ fun StartUI(apiRob: RobotAPI, onUncouple: () -> Unit) {
 
     val sensorStates = remember {
         mutableStateMapOf(
-            "camera" to true,
+            "Camera" to true,
             "LIDAR" to true,
             "Ultrasonic" to true,
-            "collisionsensor" to true,
-            "microfon" to true
+            "Collisionsensor" to true,
+            "Microfon" to true
         )
     }
     var situationenErkennenEnabled by remember { mutableStateOf(false) }
@@ -246,7 +242,7 @@ fun StartUI(apiRob: RobotAPI, onUncouple: () -> Unit) {
     var showSleepPopup by remember { mutableStateOf(false) }
     var selectedTime by remember { mutableStateOf("Dont") }
 
-    // States for Info Dialogs
+// States for Info Dialogs
     var showDiscretionInfo by remember { mutableStateOf(false) }
     var showPixelateInfo by remember { mutableStateOf(false) }
 
@@ -261,6 +257,7 @@ fun StartUI(apiRob: RobotAPI, onUncouple: () -> Unit) {
                     .padding(8.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
+
                 item {
                     SensorCategory(mainActivity.rooms, sensorStates)
                 }
@@ -273,7 +270,7 @@ fun StartUI(apiRob: RobotAPI, onUncouple: () -> Unit) {
                             onTextClick = { showDiscretionInfo = true }
                         ) {
                             situationenErkennenEnabled = it
-                            // toggle_setting() // Ensure this function is defined elsewhere
+                            toggle_setting() // Ensure this function is defined elsewhere
                         }
 
                         create_row_settings(
@@ -282,7 +279,7 @@ fun StartUI(apiRob: RobotAPI, onUncouple: () -> Unit) {
                             onTextClick = { showPixelateInfo = true }
                         ) {
                             objekteVerpixelnEnabled = it
-                            // toggle_setting()
+                            toggle_setting()
                         }
                     }
                 }
@@ -399,7 +396,6 @@ fun StartUI(apiRob: RobotAPI, onUncouple: () -> Unit) {
     }
 }
 
-
 @Composable
 fun HeaderAppName() {
     val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
@@ -412,8 +408,8 @@ fun HeaderAppName() {
     ) {
         Text(
             text = "RoboGuard\nPrivacy Settings",
-            fontSize = 42.sp,           // Etwas kleiner als 40, damit mehr Platz bleibt
-            lineHeight = 50.sp,         // Expliziter Zeilenabstand (wichtig!)
+            fontSize = 42.sp,
+            lineHeight = 50.sp,
             fontWeight = FontWeight.Bold,
             color = Color.White,
             modifier = Modifier.padding(20.dp)
@@ -434,6 +430,7 @@ fun create_row_settings(
             .padding(horizontal = 20.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+
         Text(
             text = setting,
             fontSize = 20.sp,
@@ -448,6 +445,7 @@ fun create_row_settings(
                     }
                 )
         )
+
         Switch(
             checked = isChecked,
             onCheckedChange = { newValue ->
@@ -456,8 +454,10 @@ fun create_row_settings(
         )
     }
 }
+
 @Composable fun create_row_settings_button(setting:String, text_button: String, onClick: () -> Unit){
     var expanded by remember { mutableStateOf(false) }
+
     Row( horizontalArrangement = Arrangement.spacedBy(14.dp),
         verticalAlignment = Alignment.CenterVertically ) {
         Text(modifier = Modifier
@@ -470,8 +470,8 @@ fun create_row_settings(
             onClick = onClick) { Text(text_button) } }
 }
 
-
 @Composable
+
 fun create_setting_category(name: String, content: @Composable () -> Unit) {
     var expanded by remember { mutableStateOf(false) }
 
@@ -483,14 +483,14 @@ fun create_setting_category(name: String, content: @Composable () -> Unit) {
                 .padding(vertical = 8.dp, horizontal = 20.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+
             Text(
                 text = name,
                 fontSize = 30.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.weight(1f)
             )
-
-            // arrow icon
+// arrow icon
             Icon(
                 imageVector = Icons.Default.KeyboardArrowDown,
                 contentDescription = if (expanded) "Collapse" else "Expand",
@@ -499,15 +499,13 @@ fun create_setting_category(name: String, content: @Composable () -> Unit) {
         }
 
         Divider()
-
         if (expanded) {
             content()
         }
     }
 }
-
-
 @Composable
+
 fun sleepPopup(
     show: Boolean,
     onDismiss: () -> Unit,
@@ -532,8 +530,8 @@ fun sleepPopup(
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("Sleep for:", fontWeight = FontWeight.Bold, fontSize = 20.sp)
                     Spacer(modifier = Modifier.height(16.dp))
+// Predefined options
 
-                    // Predefined options
                     val options = listOf("Dont", "5 minutes", "10 minutes", "1 hour")
                     options.forEach { option ->
                         Button(
@@ -548,12 +546,12 @@ fun sleepPopup(
                             Text(option)
                         }
                     }
-
                     Spacer(modifier = Modifier.height(12.dp))
                     Divider()
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // Custom time input
+// Custom time input
+
                     var hours by remember { mutableStateOf("") }
                     var minutes by remember { mutableStateOf("") }
                     var seconds by remember { mutableStateOf("") }
@@ -561,6 +559,7 @@ fun sleepPopup(
                     Text("Custom Time", fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.height(8.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+
                         OutlinedTextField(
                             value = hours,
                             onValueChange = { hours = it.filter { c -> c.isDigit() } },
@@ -598,8 +597,8 @@ fun sleepPopup(
                     ) {
                         Text("Set Custom Time")
                     }
-
                     Spacer(modifier = Modifier.height(8.dp))
+
                     Button(
                         onClick = onDismiss,
                         modifier = Modifier.fillMaxWidth(),
@@ -613,21 +612,21 @@ fun sleepPopup(
     }
 }
 
-
 @Composable
+
 fun SensorCategory(
     rooms: List<room>,
     sensorStates: MutableMap<String, Boolean>,
-) {
-    create_setting_category("Sensoren") {
-        val sensors = listOf("camera", "LIDAR", "ultrasonic", "collisionsensor", "microfon")
+    ) {
+
+    create_setting_category("Sensors") {
+        val sensors = listOf("Camera", "LIDAR", "Ultrasonic", "Collisionsensor", "Microfon")
 
         sensors.forEach { sensorName ->
             var sensorExpanded by remember { mutableStateOf(false) }
             val sensorEnabled = sensorStates.getOrDefault(sensorName, true)
-
             Column(modifier = Modifier.fillMaxWidth()) {
-                // Hauptswitch
+
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -635,8 +634,12 @@ fun SensorCategory(
                         .padding(horizontal = 20.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(sensorName, fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-
+                    Text(
+                        sensorName,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.weight(1f)
+                    )
                     Switch(
                         checked = sensorEnabled,
                         onCheckedChange = { newValue ->
@@ -657,14 +660,15 @@ fun SensorCategory(
                             .rotate(if (sensorExpanded) 180f else 0f)
                     )
                 }
-
                 Divider()
-
                 if (sensorExpanded) {
                     Column(modifier = Modifier.padding(start = 40.dp)) {
                         rooms.forEach { room ->
-                            var checked by remember { mutableStateOf(room.sensors[sensorName] ?: true) }
-
+                            var checked by remember {
+                                mutableStateOf(
+                                    room.sensors[sensorName] ?: true
+                                )
+                            }
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -693,7 +697,6 @@ fun SensorCategory(
     }
 }
 
-
 suspend fun syncRobot(
     sensorStates: Map<String, Boolean>,
     rooms: List<room>,
@@ -703,8 +706,8 @@ suspend fun syncRobot(
     context: Context,
     apiRob: RobotAPI
 ):Boolean {
-    Log.d("RobotAPI", "Attempting to sync with your robot")
 
+    Log.d("RobotAPI", "Attempting to sync with your robot")
     val json = createSettingsJson(
         sensorStates = sensorStates,
         rooms = rooms,
@@ -712,7 +715,6 @@ suspend fun syncRobot(
         objekteVerpixeln = objekteVerpixeln,
         sleepTime = parseSleepTimeToSeconds(sleepTime).toString()
     )
-
     Log.d("StartUI", "Settings JSON: $json")
 
     try {
@@ -722,13 +724,14 @@ suspend fun syncRobot(
         }
     } catch (e: Exception) {
         Log.e("RobotAPI", "Sync failed: ${e.message}")
+        return false
     }
     return true
 }
+
 fun toggle_setting() {
+
 }
-
-
 fun createSettingsJson(
     sensorStates: Map<String, Boolean>,
     rooms: List<room>,
@@ -736,6 +739,7 @@ fun createSettingsJson(
     objekteVerpixeln: Boolean,
     sleepTime: String
 ): String {
+
     val roomSettingsList = rooms.map { r ->
         RoomSettings(
             name = r.name,
@@ -744,6 +748,7 @@ fun createSettingsJson(
     }
 
     val settings = AppSettings(
+
         sensors = sensorStates.toMap(),
         rooms = roomSettingsList,
         situationalSettings = mapOf(
@@ -752,10 +757,9 @@ fun createSettingsJson(
         ),
         sleepTime = sleepTime
     )
-
-
     return Json { prettyPrint = true }.encodeToString<AppSettings>(settings)
 }
+
 fun parseSleepTimeToSeconds(sleepTime: String): Int {
     return when (sleepTime.lowercase()) {
         "dont" -> 0
@@ -766,11 +770,9 @@ fun parseSleepTimeToSeconds(sleepTime: String): Int {
             val hoursRegex = """(\d+)h""".toRegex()
             val minutesRegex = """(\d+)m""".toRegex()
             val secondsRegex = """(\d+)s""".toRegex()
-
             val hours = hoursRegex.find(sleepTime)?.groupValues?.get(1)?.toIntOrNull() ?: 0
             val minutes = minutesRegex.find(sleepTime)?.groupValues?.get(1)?.toIntOrNull() ?: 0
             val seconds = secondsRegex.find(sleepTime)?.groupValues?.get(1)?.toIntOrNull() ?: 0
-
             hours * 3600 + minutes * 60 + seconds
         }
     }
@@ -785,4 +787,4 @@ fun saveSettingsLocally(context: Context, jsonString: String, filename: String =
     } catch (e: Exception) {
         Log.e("StartUI", "Failed to save settings", e)
     }
-}
+} 

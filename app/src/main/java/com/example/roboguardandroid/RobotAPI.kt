@@ -1,9 +1,13 @@
 package com.example.roboguardandroid
 
 import android.content.Context
+import android.net.nsd.NsdManager
+import android.net.nsd.NsdServiceInfo
+import android.os.Looper
 import android.provider.Settings
 import android.util.Base64
 import android.util.Log
+import androidx.core.os.postDelayed
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import io.ktor.client.HttpClient
@@ -43,6 +47,8 @@ data class AuthCred(
 class RobotAPI(private val context: Context) {
     internal var isCoupled: Boolean = false
     var robotIP: String? = null
+
+    private var currentResolvedIp: String? = null
     private var client: HttpClient? = null
 
     private val masterKey = MasterKey.Builder(context)
@@ -176,17 +182,19 @@ class RobotAPI(private val context: Context) {
     }
 
     internal suspend fun pingRobot(): String = withContext(Dispatchers.IO) {
-        val response = client?.get("https://$robotIP:8443/ping")?.body() ?: "Client not initialized"
+        ensureConnection()
+        val response = client?.get("https://$currentResolvedIp:8443/ping")?.body() ?: "Client not initialized"
         Log.i("Server", "Ping: $response").toString()
     }
 
     internal suspend fun dataToRobot(data: String): HttpResponse = withContext(Dispatchers.IO) {
         requireCoupled()
+        ensureConnection()
 
         val signature = createSignature(data, getSharedSecret() ?: "")
         Log.i("RobotAPI", "Signature created")
 
-        val response = client!!.post("https://$robotIP:8443/save") {
+        val response = client!!.post("https://${currentResolvedIp}:8443/save") {
             headers {
                 append("X-Client-Id", getId().toString())
                 append("X-Client-Secret", signature)
@@ -201,8 +209,9 @@ class RobotAPI(private val context: Context) {
 
     internal suspend fun secrethandshake(otp: String): Boolean = withContext(Dispatchers.IO) {
         requireCoupled()
+        ensureConnection()
         try {
-            val response: HttpResponse = client!!.post("https://$robotIP:8443/otp_auth") {
+            val response: HttpResponse = client!!.post("https://$currentResolvedIp:8443/otp_auth") {
                 headers {
                     append("X-Client-otp", otp)
                     append("X-Client-name", getDeviceName())
@@ -264,5 +273,90 @@ class RobotAPI(private val context: Context) {
         val bytes = mac.doFinal(payload.toByteArray(Charsets.UTF_8))
 
         return android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+    }
+
+    private suspend fun ensureConnection() {
+        // already resolved?
+        if (currentResolvedIp == null) {
+            currentResolvedIp = robotIP
+        }
+
+        // test
+        try {
+            val status = pingRobotInternal(currentResolvedIp!!)
+            if (status == "alive") {
+                return
+            }
+        } catch (e: Exception) {
+            Log.w("RobotAPI", "Ping failed for $currentResolvedIp, searching via mDNS...")
+        }
+
+        //  Fallback: mdns search
+        val freshIp = resolveHostToIp(robotIP ?: return)
+        currentResolvedIp = freshIp
+        Log.i("RobotAPI", "Updated IP to: $currentResolvedIp")
+    }
+
+    private suspend fun pingRobotInternal(target: String): String = withContext(Dispatchers.IO) {
+        client?.get("https://$target:8443/ping")?.body() ?: "failed"
+    }
+
+    private suspend fun resolveHostToIp(host: String): String = withContext(Dispatchers.IO) {
+        if (host.matches(Regex("^\\d{1,3}(\\.\\d{1,3}){3}$"))) return@withContext host
+
+        kotlin.coroutines.suspendCoroutine { continuation ->
+            val nsdManager = context.getSystemService(Context.NSD_SERVICE) as NsdManager
+            val searchName = host.removeSuffix(".local")
+            var isResumed = false
+
+            val resolveListener = object : NsdManager.ResolveListener {
+                override fun onResolveFailed(serviceInfo: NsdServiceInfo, errorCode: Int) {
+                    if (!isResumed) {
+                        isResumed = true
+                        continuation.resumeWith(Result.success(host))
+                    }
+                }
+
+                override fun onServiceResolved(serviceInfo: NsdServiceInfo) {
+                    if (!isResumed) {
+                        isResumed = true
+                        val ip = serviceInfo.host.hostAddress
+                        Log.i("NSD", "Found IP for $host: $ip")
+                        continuation.resumeWith(Result.success(ip))
+                    }
+                }
+            }
+
+            val discoveryListener = object : NsdManager.DiscoveryListener {
+                override fun onServiceFound(serviceInfo: NsdServiceInfo) {
+                    if (serviceInfo.serviceName == searchName) {
+                        nsdManager.resolveService(serviceInfo, resolveListener)
+                        nsdManager.stopServiceDiscovery(this)
+                    }
+                }
+
+                override fun onDiscoveryStarted(regType: String) {}
+                override fun onServiceLost(serviceInfo: NsdServiceInfo) {}
+                override fun onDiscoveryStopped(regType: String) {}
+                override fun onStartDiscoveryFailed(regType: String, code: Int) {
+                    if (!isResumed) {
+                        isResumed = true
+                        continuation.resumeWith(Result.success(host))
+                    }
+                }
+                override fun onStopDiscoveryFailed(regType: String, code: Int) {}
+            }
+
+            nsdManager.discoverServices("_http._tcp.", NsdManager.PROTOCOL_DNS_SD, discoveryListener)
+
+            // Sicherheits-Timeout nach 4 Sekunden
+            android.os.Handler(Looper.getMainLooper()).postDelayed({
+                if (!isResumed) {
+                    isResumed = true
+                    try { nsdManager.stopServiceDiscovery(discoveryListener) } catch (e: Exception) {}
+                    continuation.resumeWith(Result.success(host))
+                }
+            }, 4000)
+        }
     }
 }
