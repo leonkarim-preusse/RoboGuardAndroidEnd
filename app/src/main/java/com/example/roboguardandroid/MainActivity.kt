@@ -83,16 +83,12 @@ data class RoomSettings(
 class MainActivity : ComponentActivity() {
 
     lateinit var apiRob: RobotAPI
-    var rooms = mutableListOf<room>(room("Wohnzimmer"), room("Schlafzimmer"), room("Badezimmer"), room("Andere Zimmer"))
+    var rooms = mutableListOf<room>(room("Living Room"), room("Bedroom"), room("Bath"), room("Other Rooms"))
     // setting name and list: list contains: [0] = buttonname, [1] = action
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         apiRob = RobotAPI(this)
-
-        // Define the API client once, outside the Composable content
-
-
 
         setContent {
             var isCoupled by remember { mutableStateOf(apiRob.isCoupled) }
@@ -100,7 +96,6 @@ class MainActivity : ComponentActivity() {
             Scaffold(
                 modifier = Modifier.fillMaxSize()
             ) { innerPadding ->
-                // innerPadding enthält den Platz für Status- und Navigationsleiste
                 Box(modifier = Modifier.padding(innerPadding)) {
                     if (isCoupled) {
                         StartUI(apiRob, onUncouple = { isCoupled = false })
@@ -205,9 +200,9 @@ fun QRscanUI(apiRob: RobotAPI, onPairingComplete: () -> Unit) {
             }
             if (showErrorDialog) {
                 androidx.compose.material3.AlertDialog(
-                    onDismissRequest = { showErrorDialog = false },
+                    onDismissRequest = { showErrorDialog = false; showQRValidation= false },
                     confirmButton = {
-                        Button(onClick = { showErrorDialog = false }) {
+                        Button(onClick = { showErrorDialog = false;  showQRValidation= false  }) {
                             Text("OK")
                         }
                     },
@@ -236,20 +231,25 @@ fun StartUI(apiRob: RobotAPI, onUncouple: () -> Unit) {
     val mainActivity = LocalActivity.current as MainActivity
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    // Gesamt-Switches für Sensoren
+
     val sensorStates = remember {
         mutableStateMapOf(
-            "Kamera" to true,
+            "camera" to true,
             "LIDAR" to true,
             "Ultrasonic" to true,
-            "Kollisionssensor" to true,
-            "Mikrofon" to true
+            "collisionsensor" to true,
+            "microfon" to true
         )
     }
     var situationenErkennenEnabled by remember { mutableStateOf(false) }
     var objekteVerpixelnEnabled by remember { mutableStateOf(false) }
     var showSleepPopup by remember { mutableStateOf(false) }
     var selectedTime by remember { mutableStateOf("Dont") }
+
+    // States for Info Dialogs
+    var showDiscretionInfo by remember { mutableStateOf(false) }
+    var showPixelateInfo by remember { mutableStateOf(false) }
+
     RoboGuardAndroidTheme {
         Column(modifier = Modifier.fillMaxSize()) {
             HeaderAppName()
@@ -261,33 +261,34 @@ fun StartUI(apiRob: RobotAPI, onUncouple: () -> Unit) {
                     .padding(8.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // Sensoren
                 item {
                     SensorCategory(mainActivity.rooms, sensorStates)
                 }
 
-                // Situationsspezifisch
                 item {
-                    create_setting_category("Situationsspezifisch") {
-
+                    create_setting_category("Situational") {
+                        create_row_settings(
+                            setting = "Discretion mode",
+                            isChecked = situationenErkennenEnabled,
+                            onTextClick = { showDiscretionInfo = true }
+                        ) {
+                            situationenErkennenEnabled = it
+                            // toggle_setting() // Ensure this function is defined elsewhere
+                        }
 
                         create_row_settings(
-                            "Situationen erkennen",
-                            situationenErkennenEnabled
-                        ) { situationenErkennenEnabled = it; toggle_setting() }
-
-                        create_row_settings(
-                            "Objekte verpixeln",
-                            objekteVerpixelnEnabled
-                        ) { objekteVerpixelnEnabled = it; toggle_setting() }
+                            setting = "pixelate marked objects",
+                            isChecked = objekteVerpixelnEnabled,
+                            onTextClick = { showPixelateInfo = true }
+                        ) {
+                            objekteVerpixelnEnabled = it
+                            // toggle_setting()
+                        }
                     }
                 }
 
-                // Sleep
                 item {
                     create_setting_category("Sleep") {
-
-
                         create_row_settings_button("Sleep for", selectedTime) {
                             showSleepPopup = true
                         }
@@ -301,19 +302,17 @@ fun StartUI(apiRob: RobotAPI, onUncouple: () -> Unit) {
                 }
             }
 
-            val context = LocalContext.current
-
-            //Uncouple Button
-            Row() {
+            // Uncouple Button
+            Row {
                 Button(
                     onClick = {
-                        apiRob.uncoupleRobot() // Löscht IP in Prefs
-                        onUncouple() // Triggert den UI-Wechsel zurück zum Scanner
+                        apiRob.uncoupleRobot()
+                        onUncouple()
                     },
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(16.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color.Red) // Optional: Rot zur Warnung
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
                 ) {
                     Text(
                         text = "Pair again / Uncouple",
@@ -324,17 +323,21 @@ fun StartUI(apiRob: RobotAPI, onUncouple: () -> Unit) {
                 }
             }
 
-            var didSync by remember{ mutableStateOf(false)}
+            var didSync by remember { mutableStateOf(false) }
             Button(
                 onClick = {
                     Log.d("StartUI", "Sensor States: $sensorStates")
-                    scope.launch{
-                    didSync = syncRobot(context = context, sensorStates = sensorStates,
-                        rooms = mainActivity.rooms,
-                        situationenErkennen = situationenErkennenEnabled,
-                        objekteVerpixeln = objekteVerpixelnEnabled,
-                        sleepTime = selectedTime, apiRob = apiRob)
-                        }
+                    scope.launch {
+                        didSync = syncRobot(
+                            context = context,
+                            sensorStates = sensorStates,
+                            rooms = mainActivity.rooms,
+                            situationenErkennen = situationenErkennenEnabled,
+                            objekteVerpixeln = objekteVerpixelnEnabled,
+                            sleepTime = selectedTime,
+                            apiRob = apiRob
+                        )
+                    }
                 },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -347,6 +350,37 @@ fun StartUI(apiRob: RobotAPI, onUncouple: () -> Unit) {
                     color = Color.White
                 )
             }
+
+            // --- Info Dialogs Logic ---
+
+            if (showDiscretionInfo) {
+                androidx.compose.material3.AlertDialog(
+                    onDismissRequest = { showDiscretionInfo = false },
+                    confirmButton = {
+                        Button(onClick = { showDiscretionInfo = false }) {
+                            Text("OK")
+                        }
+                    },
+                    title = { Text("Discretion Mode") },
+                    text = { Text("The robot turns away automatically when it detects sensitive situations or nudity to protect your privacy.") },
+                    containerColor = Color.White
+                )
+            }
+
+            if (showPixelateInfo) {
+                androidx.compose.material3.AlertDialog(
+                    onDismissRequest = { showPixelateInfo = false },
+                    confirmButton = {
+                        Button(onClick = { showPixelateInfo = false }) {
+                            Text("OK")
+                        }
+                    },
+                    title = { Text("Pixelate Objects") },
+                    text = { Text("When enabled, the robot's camera stream will automatically blur objects or persons marked as private.") },
+                    containerColor = Color.White
+                )
+            }
+
             if (didSync) {
                 androidx.compose.material3.AlertDialog(
                     onDismissRequest = { didSync = false },
@@ -361,11 +395,9 @@ fun StartUI(apiRob: RobotAPI, onUncouple: () -> Unit) {
                     titleContentColor = Color.Red
                 )
             }
-
-            }
-
         }
     }
+}
 
 
 @Composable
@@ -393,6 +425,7 @@ fun HeaderAppName() {
 fun create_row_settings(
     setting: String,
     isChecked: Boolean,
+    onTextClick: (() -> Unit)? = null, // Optional: defaults to null
     onCheckedChange: (Boolean) -> Unit
 ) {
     Row(
@@ -401,8 +434,20 @@ fun create_row_settings(
             .padding(horizontal = 20.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(setting, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-        Spacer(modifier = Modifier.weight(1f))
+        Text(
+            text = setting,
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier
+                .weight(1f)
+                .then(
+                    if (onTextClick != null) {
+                        Modifier.clickable { onTextClick() }
+                    } else {
+                        Modifier
+                    }
+                )
+        )
         Switch(
             checked = isChecked,
             onCheckedChange = { newValue ->
@@ -411,7 +456,6 @@ fun create_row_settings(
         )
     }
 }
-
 @Composable fun create_row_settings_button(setting:String, text_button: String, onClick: () -> Unit){
     var expanded by remember { mutableStateOf(false) }
     Row( horizontalArrangement = Arrangement.spacedBy(14.dp),
@@ -576,7 +620,7 @@ fun SensorCategory(
     sensorStates: MutableMap<String, Boolean>,
 ) {
     create_setting_category("Sensoren") {
-        val sensors = listOf("Kamera", "LIDAR", "Ultrasonic", "Kollisionssensor", "Mikrofon")
+        val sensors = listOf("camera", "LIDAR", "ultrasonic", "collisionsensor", "microfon")
 
         sensors.forEach { sensorName ->
             var sensorExpanded by remember { mutableStateOf(false) }
@@ -695,7 +739,7 @@ fun createSettingsJson(
     val roomSettingsList = rooms.map { r ->
         RoomSettings(
             name = r.name,
-            sensors = r.sensors.toMap() // Kopie der MutableMap
+            sensors = r.sensors.toMap()
         )
     }
 
@@ -703,8 +747,8 @@ fun createSettingsJson(
         sensors = sensorStates.toMap(),
         rooms = roomSettingsList,
         situationalSettings = mapOf(
-            "SituationenErkennen" to situationenErkennen,
-            "ObjekteVerpixeln" to objekteVerpixeln
+            "Discretion Mode" to situationenErkennen,
+            "pixelate objects" to objekteVerpixeln
         ),
         sleepTime = sleepTime
     )
@@ -719,7 +763,6 @@ fun parseSleepTimeToSeconds(sleepTime: String): Int {
         "10 minutes" -> 10 * 60
         "1 hour" -> 60 * 60
         else -> {
-            // Custom Time Format: z.B. "1h 30m 10s"
             val hoursRegex = """(\d+)h""".toRegex()
             val minutesRegex = """(\d+)m""".toRegex()
             val secondsRegex = """(\d+)s""".toRegex()
