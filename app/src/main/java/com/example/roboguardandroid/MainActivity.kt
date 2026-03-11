@@ -63,20 +63,22 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.rememberCoroutineScope
 
-
+sealed class SyncResult {
+    object Success : SyncResult()
+    object Failed : SyncResult()
+    object ReloadNeeded : SyncResult()
+}
 
 @Serializable
-
 data class AppSettings(
-    val sensors: Map<String, Boolean>, // Gesamt-Switches
-    val rooms: List<RoomSettings>, // Räume + Sensoren
-    val situationalSettings: Map<String, Boolean>, // Situationen erkennen, Objekte verpixeln
-    val sleepTime: String // Sleep-Zeit
+    val sensors: Map<String, Boolean>,
+    val rooms: List<RoomSettings>,
+    val situationalSettings: Map<String, Boolean>,
+    val sleepTime: String
 )
 
 
 @Serializable
-
 data class RoomSettings(
     val name: String,
     val sensors: Map<String, Boolean>
@@ -87,8 +89,6 @@ data class RoomSettings(
 class MainActivity : ComponentActivity() {
 
     lateinit var apiRob: RobotAPI
-    var rooms = mutableListOf<room>(room("Living Room"), room("Bedroom"), room("Bath"), room("Other Rooms"))
-        // setting name and list: list contains: [0] = buttonname, [1] = action
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -164,7 +164,7 @@ fun QRscanUI(apiRob: RobotAPI, onPairingComplete: () -> Unit) {
                     Log.d("QR", qrValue)
 
                     scannedQr = qrValue
-                    showScanner = false // Scanner wieder schließen
+                    showScanner = false
                     showQRValidation = true
                 }
             }
@@ -192,6 +192,8 @@ fun QRscanUI(apiRob: RobotAPI, onPairingComplete: () -> Unit) {
                 }
                 val success = apiRob.secrethandshake(otp)
                 if (success) {
+                    // After successful handshake, fetch capabilities
+                    apiRob.fetchRobotCapabilities()
                     onPairingComplete()
                 } else {
                     showErrorDialog = true
@@ -222,29 +224,42 @@ fun QRscanUI(apiRob: RobotAPI, onPairingComplete: () -> Unit) {
     }
 }
 @Composable
-
 fun StartUI(apiRob: RobotAPI, onUncouple: () -> Unit) {
-    val mainActivity = LocalActivity.current as MainActivity
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    val sensorStates = remember {
-        mutableStateMapOf(
-            "Camera" to true,
-            "LIDAR" to true,
-            "Ultrasonic" to true,
-            "Collisionsensor" to true,
-            "Microfon" to true
-        )
-    }
-    var situationenErkennenEnabled by remember { mutableStateOf(false) }
-    var objekteVerpixelnEnabled by remember { mutableStateOf(false) }
-    var showSleepPopup by remember { mutableStateOf(false) }
-    var selectedTime by remember { mutableStateOf("Dont") }
+    // Use a refresh key to force re-initialization of states when capabilities change
+    var refreshKey by remember { mutableStateOf(0) }
 
-// States for Info Dialogs
-    var showDiscretionInfo by remember { mutableStateOf(false) }
-    var showPixelateInfo by remember { mutableStateOf(false) }
+    // Load capabilities from API (saved in prefs, with fallback to defaults)
+    val capabilities = remember(refreshKey) { apiRob.getSavedCapabilities() }
+    
+    val sensorList = capabilities.sensors
+    val roomList = capabilities.rooms
+    val situationalList = capabilities.situational
+
+    val sensorStates = remember(refreshKey) {
+        val initialMap = sensorList.associateWith { true }.toMutableMap()
+        mutableStateMapOf<String, Boolean>().apply { putAll(initialMap) }
+    }
+
+    val situationalStates = remember(refreshKey) {
+        val initialMap = situationalList.associateWith { false }.toMutableMap()
+        mutableStateMapOf<String, Boolean>().apply { putAll(initialMap) }
+    }
+
+    val rooms = remember(refreshKey) {
+        roomList.map { roomName -> room(roomName, sensorList) }
+    }
+
+    var showSleepPopup by remember { mutableStateOf(false) }
+    var selectedTime by remember { mutableStateOf("Don't") }
+
+    // States for Info Dialogs
+    var infoDialogTitle by remember { mutableStateOf<String?>(null) }
+    var infoDialogText by remember { mutableStateOf<String?>(null) }
+
+    var syncStatus by remember { mutableStateOf<SyncResult?>(null) }
 
     RoboGuardAndroidTheme {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -259,27 +274,36 @@ fun StartUI(apiRob: RobotAPI, onUncouple: () -> Unit) {
             ) {
 
                 item {
-                    SensorCategory(mainActivity.rooms, sensorStates)
+                    SensorCategory(rooms, sensorStates, sensorList)
                 }
 
                 item {
                     create_setting_category("Situational") {
-                        create_row_settings(
-                            setting = "Discretion mode",
-                            isChecked = situationenErkennenEnabled,
-                            onTextClick = { showDiscretionInfo = true }
-                        ) {
-                            situationenErkennenEnabled = it
-                            toggle_setting() // Ensure this function is defined elsewhere
-                        }
-
-                        create_row_settings(
-                            setting = "pixelate marked objects",
-                            isChecked = objekteVerpixelnEnabled,
-                            onTextClick = { showPixelateInfo = true }
-                        ) {
-                            objekteVerpixelnEnabled = it
-                            toggle_setting()
+                        situationalList.forEach { settingName ->
+                            create_row_settings(
+                                setting = settingName,
+                                isChecked = situationalStates[settingName] ?: false,
+                                onTextClick = {
+                                    // Map info text based on name
+                                    when (settingName) {
+                                        "Discretion Mode" -> {
+                                            infoDialogTitle = "Discretion Mode"
+                                            infoDialogText = "The robot turns away automatically when it detects sensitive situations or nudity to protect your privacy."
+                                        }
+                                        "pixelate objects" -> {
+                                            infoDialogTitle = "Pixelate Objects"
+                                            infoDialogText = "When enabled, the robot's camera stream will automatically blur objects or persons marked as private."
+                                        }
+                                        else -> {
+                                            infoDialogTitle = settingName
+                                            infoDialogText = "Specific information for $settingName is not available."
+                                        }
+                                    }
+                                }
+                            ) {
+                                situationalStates[settingName] = it
+                                toggle_setting()
+                            }
                         }
                     }
                 }
@@ -320,20 +344,22 @@ fun StartUI(apiRob: RobotAPI, onUncouple: () -> Unit) {
                 }
             }
 
-            var didSync by remember { mutableStateOf(false) }
             Button(
                 onClick = {
                     Log.d("StartUI", "Sensor States: $sensorStates")
                     scope.launch {
-                        didSync = syncRobot(
+                        syncStatus = syncRobot(
                             context = context,
                             sensorStates = sensorStates,
-                            rooms = mainActivity.rooms,
-                            situationenErkennen = situationenErkennenEnabled,
-                            objekteVerpixeln = objekteVerpixelnEnabled,
+                            rooms = rooms,
+                            situationalStates = situationalStates,
                             sleepTime = selectedTime,
-                            apiRob = apiRob
+                            apiRob = apiRob,
+                            currentCapabilities = capabilities
                         )
+                        if (syncStatus is SyncResult.ReloadNeeded) {
+                            refreshKey++
+                        }
                     }
                 },
                 modifier = Modifier
@@ -348,49 +374,63 @@ fun StartUI(apiRob: RobotAPI, onUncouple: () -> Unit) {
                 )
             }
 
-            // --- Info Dialogs Logic ---
-
-            if (showDiscretionInfo) {
+            // Dynamic Info Dialog
+            if (infoDialogTitle != null && infoDialogText != null) {
                 androidx.compose.material3.AlertDialog(
-                    onDismissRequest = { showDiscretionInfo = false },
+                    onDismissRequest = { infoDialogTitle = null; infoDialogText = null },
                     confirmButton = {
-                        Button(onClick = { showDiscretionInfo = false }) {
+                        Button(onClick = { infoDialogTitle = null; infoDialogText = null }) {
                             Text("OK")
                         }
                     },
-                    title = { Text("Discretion Mode") },
-                    text = { Text("The robot turns away automatically when it detects sensitive situations or nudity to protect your privacy.") },
+                    title = { Text(infoDialogTitle!!) },
+                    text = { Text(infoDialogText!!) },
                     containerColor = Color.White
                 )
             }
 
-            if (showPixelateInfo) {
-                androidx.compose.material3.AlertDialog(
-                    onDismissRequest = { showPixelateInfo = false },
-                    confirmButton = {
-                        Button(onClick = { showPixelateInfo = false }) {
-                            Text("OK")
-                        }
-                    },
-                    title = { Text("Pixelate Objects") },
-                    text = { Text("When enabled, the robot's camera stream will automatically blur objects or persons marked as private.") },
-                    containerColor = Color.White
-                )
-            }
-
-            if (didSync) {
-                androidx.compose.material3.AlertDialog(
-                    onDismissRequest = { didSync = false },
-                    confirmButton = {
-                        Button(onClick = { didSync = false }) {
-                            Text("OK")
-                        }
-                    },
-                    title = { Text("Sync Successful!") },
-                    text = { Text("Your privacy settings were successfully saved on your robot") },
-                    containerColor = Color.White,
-                    titleContentColor = Color.Red
-                )
+            // Sync Status Dialogs
+            when (syncStatus) {
+                is SyncResult.Success -> {
+                    androidx.compose.material3.AlertDialog(
+                        onDismissRequest = { syncStatus = null },
+                        confirmButton = {
+                            Button(onClick = { syncStatus = null }) {
+                                Text("OK")
+                            }
+                        },
+                        title = { Text("Sync Successful!") },
+                        text = { Text("Your privacy settings were successfully saved on your robot") },
+                        containerColor = Color.White
+                    )
+                }
+                is SyncResult.Failed -> {
+                    androidx.compose.material3.AlertDialog(
+                        onDismissRequest = { syncStatus = null },
+                        confirmButton = {
+                            Button(onClick = { syncStatus = null }) {
+                                Text("OK")
+                            }
+                        },
+                        title = { Text("Sync Failed") },
+                        text = { Text("Could not connect to the robot. Please check your connection.") },
+                        containerColor = Color.White
+                    )
+                }
+                is SyncResult.ReloadNeeded -> {
+                    androidx.compose.material3.AlertDialog(
+                        onDismissRequest = { syncStatus = null },
+                        confirmButton = {
+                            Button(onClick = { syncStatus = null }) {
+                                Text("Update Now")
+                            }
+                        },
+                        title = { Text("Robot Config Changed") },
+                        text = { Text("The robot's available sensors or rooms have changed. The UI will now be updated.") },
+                        containerColor = Color.White
+                    )
+                }
+                else -> {}
             }
         }
     }
@@ -421,7 +461,7 @@ fun HeaderAppName() {
 fun create_row_settings(
     setting: String,
     isChecked: Boolean,
-    onTextClick: (() -> Unit)? = null, // Optional: defaults to null
+    onTextClick: (() -> Unit)? = null,
     onCheckedChange: (Boolean) -> Unit
 ) {
     Row(
@@ -456,8 +496,6 @@ fun create_row_settings(
 }
 
 @Composable fun create_row_settings_button(setting:String, text_button: String, onClick: () -> Unit){
-    var expanded by remember { mutableStateOf(false) }
-
     Row( horizontalArrangement = Arrangement.spacedBy(14.dp),
         verticalAlignment = Alignment.CenterVertically ) {
         Text(modifier = Modifier
@@ -471,7 +509,6 @@ fun create_row_settings(
 }
 
 @Composable
-
 fun create_setting_category(name: String, content: @Composable () -> Unit) {
     var expanded by remember { mutableStateOf(false) }
 
@@ -490,11 +527,10 @@ fun create_setting_category(name: String, content: @Composable () -> Unit) {
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.weight(1f)
             )
-// arrow icon
             Icon(
                 imageVector = Icons.Default.KeyboardArrowDown,
                 contentDescription = if (expanded) "Collapse" else "Expand",
-                modifier = Modifier.rotate(if (expanded) 180f else 0f) // Pfeil drehen
+                modifier = Modifier.rotate(if (expanded) 180f else 0f)
             )
         }
 
@@ -505,7 +541,6 @@ fun create_setting_category(name: String, content: @Composable () -> Unit) {
     }
 }
 @Composable
-
 fun sleepPopup(
     show: Boolean,
     onDismiss: () -> Unit,
@@ -517,7 +552,7 @@ fun sleepPopup(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color(0x88000000)) // semi-transparent background
+                .background(Color(0x88000000))
                 .padding(32.dp),
             contentAlignment = Alignment.Center
         ) {
@@ -530,7 +565,6 @@ fun sleepPopup(
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("Sleep for:", fontWeight = FontWeight.Bold, fontSize = 20.sp)
                     Spacer(modifier = Modifier.height(16.dp))
-// Predefined options
 
                     val options = listOf("Dont", "5 minutes", "10 minutes", "1 hour")
                     options.forEach { option ->
@@ -549,8 +583,6 @@ fun sleepPopup(
                     Spacer(modifier = Modifier.height(12.dp))
                     Divider()
                     Spacer(modifier = Modifier.height(12.dp))
-
-// Custom time input
 
                     var hours by remember { mutableStateOf("") }
                     var minutes by remember { mutableStateOf("") }
@@ -613,16 +645,14 @@ fun sleepPopup(
 }
 
 @Composable
-
 fun SensorCategory(
     rooms: List<room>,
     sensorStates: MutableMap<String, Boolean>,
+    sensorList: List<String>
     ) {
 
     create_setting_category("Sensors") {
-        val sensors = listOf("Camera", "LIDAR", "Ultrasonic", "Collisionsensor", "Microfon")
-
-        sensors.forEach { sensorName ->
+        sensorList.forEach { sensorName ->
             var sensorExpanded by remember { mutableStateOf(false) }
             val sensorEnabled = sensorStates.getOrDefault(sensorName, true)
             Column(modifier = Modifier.fillMaxWidth()) {
@@ -700,33 +730,45 @@ fun SensorCategory(
 suspend fun syncRobot(
     sensorStates: Map<String, Boolean>,
     rooms: List<room>,
-    situationenErkennen: Boolean,
-    objekteVerpixeln: Boolean,
+    situationalStates: Map<String, Boolean>,
     sleepTime: String,
     context: Context,
-    apiRob: RobotAPI
-):Boolean {
+    apiRob: RobotAPI,
+    currentCapabilities: RobotCapabilities
+): SyncResult {
+
+    Log.d("RobotAPI", "Verifying robot configuration before sync...")
+    
+    // 1. Fetch latest capabilities from robot
+    val latestCapabilities = apiRob.fetchRobotCapabilities()
+    
+    // 2. Compare with what the UI is currently using
+    if (latestCapabilities != null && latestCapabilities != currentCapabilities) {
+        Log.w("RobotAPI", "Configuration mismatch! UI needs reload.")
+        return SyncResult.ReloadNeeded
+    }
 
     Log.d("RobotAPI", "Attempting to sync with your robot")
     val json = createSettingsJson(
         sensorStates = sensorStates,
         rooms = rooms,
-        situationenErkennen = situationenErkennen,
-        objekteVerpixeln = objekteVerpixeln,
+        situationalStates = situationalStates,
         sleepTime = parseSleepTimeToSeconds(sleepTime).toString()
     )
     Log.d("StartUI", "Settings JSON: $json")
 
-    try {
+    return try {
         val response = apiRob.dataToRobot(json)
         if (response.status.value in 200..299) {
             Log.d("RobotAPI", "Sync successful!")
+            SyncResult.Success
+        } else {
+            SyncResult.Failed
         }
     } catch (e: Exception) {
         Log.e("RobotAPI", "Sync failed: ${e.message}")
-        return false
+        SyncResult.Failed
     }
-    return true
 }
 
 fun toggle_setting() {
@@ -735,8 +777,7 @@ fun toggle_setting() {
 fun createSettingsJson(
     sensorStates: Map<String, Boolean>,
     rooms: List<room>,
-    situationenErkennen: Boolean,
-    objekteVerpixeln: Boolean,
+    situationalStates: Map<String, Boolean>,
     sleepTime: String
 ): String {
 
@@ -748,13 +789,9 @@ fun createSettingsJson(
     }
 
     val settings = AppSettings(
-
         sensors = sensorStates.toMap(),
         rooms = roomSettingsList,
-        situationalSettings = mapOf(
-            "Discretion Mode" to situationenErkennen,
-            "pixelate objects" to objekteVerpixeln
-        ),
+        situationalSettings = situationalStates.toMap(),
         sleepTime = sleepTime
     )
     return Json { prettyPrint = true }.encodeToString<AppSettings>(settings)
@@ -787,4 +824,4 @@ fun saveSettingsLocally(context: Context, jsonString: String, filename: String =
     } catch (e: Exception) {
         Log.e("StartUI", "Failed to save settings", e)
     }
-} 
+}

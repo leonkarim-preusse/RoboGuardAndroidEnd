@@ -5,9 +5,7 @@ import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
 import android.os.Looper
 import android.provider.Settings
-import android.util.Base64
 import android.util.Log
-import androidx.core.os.postDelayed
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import io.ktor.client.HttpClient
@@ -26,15 +24,15 @@ import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.encodeToString
 import java.io.ByteArrayInputStream
-import java.security.KeyStore
 import java.security.cert.CertificateException
 import java.security.cert.CertificateFactory
 import java.security.cert.X509Certificate
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 import javax.net.ssl.SSLContext
-import javax.net.ssl.TrustManagerFactory
 import javax.net.ssl.X509TrustManager
 
 
@@ -42,6 +40,13 @@ import javax.net.ssl.X509TrustManager
 data class AuthCred(
     val id: Long,
     val secret: String
+)
+
+@Serializable
+data class RobotCapabilities(
+    val sensors: List<String> = listOf("Camera", "LIDAR", "Ultrasonic", "Collisionsensor", "Microfon"),
+    val rooms: List<String> = listOf("Living Room", "Bedroom", "Bath", "Other Rooms"),
+    val situational: List<String> = listOf("Discretion Mode", "pixelate objects")
 )
 
 class RobotAPI(private val context: Context) {
@@ -184,7 +189,8 @@ class RobotAPI(private val context: Context) {
     internal suspend fun pingRobot(): String = withContext(Dispatchers.IO) {
         ensureConnection()
         val response = client?.get("https://$currentResolvedIp:8443/ping")?.body() ?: "Client not initialized"
-        Log.i("Server", "Ping: $response").toString()
+        Log.i("Server", "Ping: $response")
+        response
     }
 
     internal suspend fun dataToRobot(data: String): HttpResponse = withContext(Dispatchers.IO) {
@@ -240,6 +246,43 @@ class RobotAPI(private val context: Context) {
         }
     }
 
+    suspend fun fetchRobotCapabilities(): RobotCapabilities? = withContext(Dispatchers.IO) {
+        requireCoupled()
+        ensureConnection()
+        try {
+            val response: HttpResponse = client!!.get("https://$currentResolvedIp:8443/capabilities") {
+                headers {
+                    append("X-Client-Id", getId().toString())
+                    append("X-Client-Secret", createSignature("", getSharedSecret() ?: ""))
+                }
+            }
+            if (response.status == HttpStatusCode.OK) {
+                val capabilities = response.body<RobotCapabilities>()
+                saveCapabilities(capabilities)
+                capabilities
+            } else {
+                Log.e("RobotAPI", "Failed to fetch capabilities: ${response.status}")
+                null
+            }
+        } catch (e: Exception) {
+            Log.e("RobotAPI", "Error fetching capabilities: ${e.message}")
+            null
+        }
+    }
+
+    private fun saveCapabilities(capabilities: RobotCapabilities) {
+        val json = Json.encodeToString(capabilities)
+        sharedPrefs.edit().putString("robot_capabilities", json).apply()
+    }
+
+    fun getSavedCapabilities(): RobotCapabilities {
+        val json = sharedPrefs.getString("robot_capabilities", null) ?: return RobotCapabilities()
+        return try {
+            Json.decodeFromString<RobotCapabilities>(json)
+        } catch (e: Exception) {
+            RobotCapabilities()
+        }
+    }
 
     internal fun requireCoupled() {
         if (!isCoupled || client == null) {
