@@ -125,8 +125,8 @@ class RobotAPI(private val context: Context) {
                     android.util.Log.d("SSL_DEBUG", "QR-CODE: $expectedKeyBase64")
 
                     if (receivedKeyBase64 != expectedKeyBase64) {
-                        if (receivedKeyBase64.contains(expectedKeyBase64) || expectedKeyBase64.contains(receivedKeyBase64)) {
-                            android.util.Log.w("SSL_DEBUG", "This is a bad idea because I just accepted a key that only contains the right one")
+                        if ((receivedKeyBase64 == expectedKeyBase64) || (expectedKeyBase64== receivedKeyBase64)) {
+                            android.util.Log.w("SSL_DEBUG", "Keys correspond")
                             return
                         }
                         throw CertificateException("Key Mismatch!")
