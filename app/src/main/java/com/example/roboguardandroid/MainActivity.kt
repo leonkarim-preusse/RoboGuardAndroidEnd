@@ -62,12 +62,18 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
+/**
+ * Sealed class representing the possible results of a synchronization attempt with the robot.
+ */
 sealed class SyncResult {
     object Success : SyncResult()
     object Failed : SyncResult()
     object ReloadNeeded : SyncResult()
 }
 
+/**
+ * Data class representing the full application settings to be sent to the robot.
+ */
 @Serializable
 data class AppSettings(
     val sensors: Map<String, Boolean>,
@@ -76,15 +82,19 @@ data class AppSettings(
     val sleepTime: String
 )
 
-
+/**
+ * Data class representing privacy settings for a specific room.
+ */
 @Serializable
 data class RoomSettings(
     val name: String,
     val sensors: Map<String, Boolean>
 )
 
-
-
+/**
+ * Main Activity of the RoboGuard Android application.
+ * Manages the top-level navigation between pairing (QR scan) and the settings UI.
+ */
 class MainActivity : ComponentActivity() {
 
     lateinit var apiRob: RobotAPI
@@ -112,7 +122,11 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-
+/**
+ * Composable that handles the QR code scanning flow for pairing with a robot.
+ * @param apiRob The [RobotAPI] instance.
+ * @param onPairingComplete Callback triggered when pairing is successful.
+ */
 @Composable
 fun QRscanUI(apiRob: RobotAPI, onPairingComplete: () -> Unit) {
 
@@ -222,6 +236,13 @@ fun QRscanUI(apiRob: RobotAPI, onPairingComplete: () -> Unit) {
         }
     }
 }
+
+/**
+ * The main settings interface shown once the app is successfully paired.
+ * Allows users to toggle sensors, rooms, and situational privacy modes.
+ * @param apiRob The [RobotAPI] instance.
+ * @param onUncouple Callback triggered when the user chooses to uncouple.
+ */
 @Composable
 fun StartUI(apiRob: RobotAPI, onUncouple: () -> Unit) {
     val context = LocalContext.current
@@ -435,6 +456,9 @@ fun StartUI(apiRob: RobotAPI, onUncouple: () -> Unit) {
     }
 }
 
+/**
+ * Displays the application header with the title.
+ */
 @Composable
 fun HeaderAppName() {
     val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
@@ -456,6 +480,13 @@ fun HeaderAppName() {
     }
 }
 
+/**
+ * Creates a setting row with a title and a switch.
+ * @param setting The name of the setting.
+ * @param isChecked Current state of the switch.
+ * @param onTextClick Optional callback for clicking the setting name.
+ * @param onCheckedChange Callback for switch state changes.
+ */
 @Composable
 fun create_row_settings(
     setting: String,
@@ -494,6 +525,12 @@ fun create_row_settings(
     }
 }
 
+/**
+ * Creates a setting row with a button instead of a switch.
+ * @param setting The name of the setting.
+ * @param text_button The text shown on the button.
+ * @param onClick Callback for button clicks.
+ */
 @Composable fun create_row_settings_button(setting:String, text_button: String, onClick: () -> Unit){
     Row( horizontalArrangement = Arrangement.spacedBy(14.dp),
         verticalAlignment = Alignment.CenterVertically ) {
@@ -507,6 +544,11 @@ fun create_row_settings(
             onClick = onClick) { Text(text_button) } }
 }
 
+/**
+ * An expandable category container for settings.
+ * @param name The name of the category.
+ * @param content The composable content to show when expanded.
+ */
 @Composable
 fun create_setting_category(name: String, content: @Composable () -> Unit) {
     var expanded by remember { mutableStateOf(false) }
@@ -539,6 +581,13 @@ fun create_setting_category(name: String, content: @Composable () -> Unit) {
         }
     }
 }
+
+/**
+ * Dialog for selecting a sleep duration or entering a custom time.
+ * @param show Controls visibility of the dialog.
+ * @param onDismiss Callback when the dialog is dismissed.
+ * @param onSelect Callback when a time is selected.
+ */
 @Composable
 fun sleepPopup(
     show: Boolean,
@@ -643,6 +692,13 @@ fun sleepPopup(
     }
 }
 
+/**
+ * Composable for the "Sensors" category. Displays global sensor toggles
+ * and per-room sensor overrides.
+ * @param rooms List of [room] objects.
+ * @param sensorStates Map of global sensor enablement states.
+ * @param sensorList List of available sensor names.
+ */
 @Composable
 fun SensorCategory(
     rooms: List<room>,
@@ -726,6 +782,11 @@ fun SensorCategory(
     }
 }
 
+/**
+ * Synchronizes the current UI settings with the robot.
+ * Checks for capability mismatches before sending data.
+ * @return [SyncResult] indicating success, failure, or if a UI reload is needed.
+ */
 suspend fun syncRobot(
     sensorStates: Map<String, Boolean>,
     rooms: List<room>,
@@ -770,9 +831,14 @@ suspend fun syncRobot(
     }
 }
 
+/** Placeholder for setting toggle logic. */
 fun toggle_setting() {
 
 }
+
+/**
+ * Converts UI states into a JSON string of [AppSettings].
+ */
 fun createSettingsJson(
     sensorStates: Map<String, Boolean>,
     rooms: List<room>,
@@ -796,6 +862,9 @@ fun createSettingsJson(
     return Json { prettyPrint = true }.encodeToString<AppSettings>(settings)
 }
 
+/**
+ * Parses human-readable sleep time strings (e.g., "5 minutes") into seconds.
+ */
 fun parseSleepTimeToSeconds(sleepTime: String): Int {
     return when (sleepTime.lowercase()) {
         "dont" -> 0
@@ -814,6 +883,9 @@ fun parseSleepTimeToSeconds(sleepTime: String): Int {
     }
 }
 
+/**
+ * Saves the settings JSON string to a local file.
+ */
 fun saveSettingsLocally(context: Context, jsonString: String, filename: String = "settings.json") {
     try {
         context.openFileOutput(filename, Context.MODE_PRIVATE).use { output ->

@@ -11,28 +11,32 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 
+/**
+ * Dark color scheme definition for the application.
+ */
 private val DarkColorScheme = darkColorScheme(
     primary = Purple80,
     secondary = PurpleGrey80,
     tertiary = Pink80
 )
 
+/**
+ * Light color scheme definition for the application.
+ */
 private val LightColorScheme = lightColorScheme(
     primary = Purple40,
     secondary = PurpleGrey40,
     tertiary = Pink40
-
-    /* Other default colors to override
-    background = Color(0xFFFFFBFE),
-    surface = Color(0xFFFFFBFE),
-    onPrimary = Color.White,
-    onSecondary = Color.White,
-    onTertiary = Color.White,
-    onBackground = Color(0xFF1C1B1F),
-    onSurface = Color(0xFF1C1B1F),
-    */
 )
 
+/**
+ * Main theme composable for the RoboGuard application.
+ * Configures Material 3 color schemes, including support for dynamic color on Android 12+.
+ * 
+ * @param darkTheme Whether the dark theme is currently enabled.
+ * @param dynamicColor Whether dynamic color (Material You) should be used if available.
+ * @param content The composable content to be themed.
+ */
 @Composable
 fun RoboGuardAndroidTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),

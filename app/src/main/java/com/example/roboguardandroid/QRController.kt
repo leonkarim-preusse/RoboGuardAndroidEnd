@@ -6,6 +6,7 @@ import androidx.camera.core.ImageProxy
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ExperimentalGetImage
 import androidx.camera.core.Preview
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 
@@ -27,7 +28,6 @@ import com.google.accompanist.permissions.rememberPermissionState
 import com.google.accompanist.permissions.isGranted
 
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import java.util.concurrent.Executors
 
@@ -44,12 +44,22 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.json.JSONObject
 
+/**
+ * Data class representing the information extracted from a robot's QR code.
+ * @property publicKey The robot's public key for SSL pinning.
+ * @property otp One-time password for the initial handshake.
+ * @property ip The IP address or hostname of the robot.
+ */
 data class QrData(
     val publicKey: String,
     val otp: String,
     val ip: String,
 )
 
+/**
+ * Image analyzer that uses ML Kit to detect and scan QR codes from a camera stream.
+ * @property onQrCodeScanned Callback triggered when a QR code is successfully detected.
+ */
 class QrCodeAnalyzer(
     private val onQrCodeScanned: (String) -> Unit
 ) : ImageAnalysis.Analyzer {
@@ -85,6 +95,10 @@ class QrCodeAnalyzer(
     }
 }
 
+/**
+ * Composable screen that displays a camera preview and scans for QR codes.
+ * @param onQrScanned Callback triggered when a QR code is scanned.
+ */
 @Composable
 fun QrScannerScreen(
     onQrScanned: (String) -> Unit
@@ -141,6 +155,11 @@ fun QrScannerScreen(
 
 
 }
+
+/**
+ * Wrapper that handles camera permission requests before showing the QR scanner.
+ * @param onQrScanned Callback triggered when a QR code is scanned.
+ */
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
 fun CameraPermissionWrapper(
@@ -169,6 +188,11 @@ fun CameraPermissionWrapper(
     }
 }
 
+/**
+ * Verifies if the provided string content is a valid JSON QR code for RoboGuard.
+ * @param content The string content to verify.
+ * @return True if valid, false otherwise.
+ */
 fun verify_QR(content: String?): Boolean {
     if (content == null) return false
 
@@ -180,7 +204,12 @@ fun verify_QR(content: String?): Boolean {
     }
 }
 
-
+/**
+ * Parses the JSON content of a QR code into a [QrData] object.
+ * @param content The JSON string content.
+ * @return The parsed [QrData].
+ * @throws Exception if parsing fails or required fields are missing.
+ */
 fun parseQR(content: String?): QrData {
     val json = JSONObject(content)
 
@@ -195,7 +224,10 @@ fun parseQR(content: String?): QrData {
     return QrData(publicKey, otp, ip)
 }
 
-
+/**
+ * UI screen displaying the result of the QR verification process.
+ * @param isValid True if the QR code was successfully verified.
+ */
 @Composable
 fun isQRvalidScreen(isValid:Boolean) {
     var msg: String = "Please try to scan again! QR Code could not be verified."
@@ -217,4 +249,3 @@ fun isQRvalidScreen(isValid:Boolean) {
     )
     }
 }
-

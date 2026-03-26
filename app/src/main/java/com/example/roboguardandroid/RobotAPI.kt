@@ -36,12 +36,23 @@ import javax.net.ssl.SSLContext
 import javax.net.ssl.X509TrustManager
 
 
+/**
+ * Data class representing authentication credentials received from the robot.
+ * @property id The unique identifier for the client.
+ * @property secret The shared secret used for HMAC signatures.
+ */
 @Serializable
 data class AuthCred(
     val id: Long,
     val secret: String
 )
 
+/**
+ * Data class representing the capabilities of the robot.
+ * @property sensors List of available sensors on the robot.
+ * @property rooms List of predefined rooms the robot can navigate.
+ * @property situational List of situational privacy modes (e.g., Discretion Mode).
+ */
 @Serializable
 data class RobotCapabilities(
     val sensors: List<String> = listOf("Camera", "LIDAR", "Ultrasonic", "Collisionsensor", "Microfon"),
@@ -49,8 +60,15 @@ data class RobotCapabilities(
     val situational: List<String> = listOf("Discretion Mode", "pixelate objects")
 )
 
+/**
+ * Main API class for communicating with the RoboGuard robot.
+ * Handles pairing, secure communication (HTTPS/HMAC), and service discovery.
+ * @property context Android context used for SharedPreferences and system services.
+ */
 class RobotAPI(private val context: Context) {
+    /** Indicates if the app is currently paired with a robot. */
     internal var isCoupled: Boolean = false
+    /** The hostname or IP address of the robot as scanned from the QR code. */
     var robotIP: String? = null
 
     private var currentResolvedIp: String? = null
@@ -60,6 +78,7 @@ class RobotAPI(private val context: Context) {
         .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
         .build()
 
+    /** Secure storage for sensitive information like robot IP, certificates, and shared secrets. */
     private val sharedPrefs = EncryptedSharedPreferences.create(
         context,
         "robot_secure_prefs",
@@ -83,6 +102,9 @@ class RobotAPI(private val context: Context) {
         }
     }
 
+    /**
+     * Clears all pairing information and resets the API state.
+     */
     fun uncoupleRobot() {
         sharedPrefs.edit().clear().apply()
         this.robotIP = null
@@ -91,6 +113,10 @@ class RobotAPI(private val context: Context) {
         Log.i("Uncouple", "Uncoupled successfully")
     }
 
+    /**
+     * Sets up the Ktor HttpClient with custom SSL pinning using the robot's public key.
+     * @param certBase64 The base64 encoded certificate of the robot.
+     */
     private fun setupHttpClient(certBase64: String) {
         try {
             val cleanCert = certBase64
@@ -102,7 +128,7 @@ class RobotAPI(private val context: Context) {
             val certBytes = android.util.Base64.decode(cleanCert, android.util.Base64.DEFAULT)
             val serverCert = cf.generateCertificate(ByteArrayInputStream(certBytes)) as X509Certificate
 
-            // custom Trust Manager
+            // custom Trust Manager for Public Key Pinning
             val customTrustManager = object : X509TrustManager {
                 override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) {}
                 override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) {
@@ -165,6 +191,11 @@ class RobotAPI(private val context: Context) {
         }
     }
 
+    /**
+     * Completes the initial pairing by saving the robot's IP and certificate.
+     * @param ip The robot's IP address.
+     * @param certBase64 The robot's certificate in Base64 format.
+     */
     fun completePairing(ip: String, certBase64: String) {
         this.robotIP = ip
         setupHttpClient(certBase64)
@@ -182,6 +213,10 @@ class RobotAPI(private val context: Context) {
         }
     }
 
+    /**
+     * Pings the robot to check for connectivity.
+     * @return The response body from the robot, or an error message.
+     */
     internal suspend fun pingRobot(): String = withContext(Dispatchers.IO) {
         ensureConnection()
         val response = client?.get("https://$currentResolvedIp:8443/ping")?.body() ?: "Client not initialized"
@@ -189,6 +224,11 @@ class RobotAPI(private val context: Context) {
         response
     }
 
+    /**
+     * Sends configuration data to the robot securely using HMAC signature.
+     * @param data The JSON string containing privacy settings.
+     * @return The HTTP response from the robot.
+     */
     internal suspend fun dataToRobot(data: String): HttpResponse = withContext(Dispatchers.IO) {
         requireCoupled()
         ensureConnection()
@@ -209,6 +249,12 @@ class RobotAPI(private val context: Context) {
         response
     }
 
+    /**
+     * Performs a secret handshake with the robot using an OTP.
+     * On success, saves the shared secret and client ID.
+     * @param otp The one-time password scanned from the QR code.
+     * @return True if authentication was successful, false otherwise.
+     */
     internal suspend fun secrethandshake(otp: String): Boolean = withContext(Dispatchers.IO) {
         requireCoupled()
         ensureConnection()
@@ -242,6 +288,10 @@ class RobotAPI(private val context: Context) {
         }
     }
 
+    /**
+     * Fetches the robot's available sensors, rooms, and situational modes.
+     * @return The [RobotCapabilities] object if successful, null otherwise.
+     */
     suspend fun fetchRobotCapabilities(): RobotCapabilities? = withContext(Dispatchers.IO) {
         requireCoupled()
         ensureConnection()
@@ -266,11 +316,13 @@ class RobotAPI(private val context: Context) {
         }
     }
 
+    /** Saves fetched robot capabilities to secure preferences. */
     private fun saveCapabilities(capabilities: RobotCapabilities) {
         val json = Json.encodeToString(capabilities)
         sharedPrefs.edit().putString("robot_capabilities", json).apply()
     }
 
+    /** Retrieves saved robot capabilities from secure preferences. */
     fun getSavedCapabilities(): RobotCapabilities {
         val json = sharedPrefs.getString("robot_capabilities", null) ?: return RobotCapabilities()
         return try {
@@ -280,26 +332,38 @@ class RobotAPI(private val context: Context) {
         }
     }
 
+    /** Throws an exception if the API is not yet paired or initialized. */
     internal fun requireCoupled() {
         if (!isCoupled || client == null) {
             throw IllegalStateException("No Robot Coupled, $isCoupled, $client ")
         }
     }
     
+    /** Gets the Android device name. */
     fun getDeviceName(): String {
         return Settings.Global.getString(
             context.contentResolver,
             Settings.Global.DEVICE_NAME
         ) ?: "Unknown Device"
     }
+
+    /** Returns the stored shared secret for HMAC. */
     fun getSharedSecret(): String? {
         return sharedPrefs.getString("shared_secret", null)
     }
 
+    /** Returns the stored client ID. */
     fun getId(): Long? {
         if (!sharedPrefs.contains("client_id")) return null
         return sharedPrefs.getLong("client_id", -1L)
     }
+
+    /**
+     * Creates an HMAC-SHA256 signature for a payload.
+     * @param payload The data to sign.
+     * @param secretBase64 The base64 encoded shared secret.
+     * @return The base64 encoded signature.
+     */
     private fun createSignature(payload: String, secretBase64: String): String {
         // decode BASE 64
         val secretBytes = android.util.Base64.decode(secretBase64, android.util.Base64.NO_WRAP)
@@ -314,6 +378,10 @@ class RobotAPI(private val context: Context) {
         return android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
     }
 
+    /**
+     * Ensures that the [currentResolvedIp] is valid.
+     * Attempts to ping the last known IP, and if it fails, uses mDNS to resolve it again.
+     */
     private suspend fun ensureConnection() {
         // already resolved?
         if (currentResolvedIp == null) {
@@ -340,6 +408,11 @@ class RobotAPI(private val context: Context) {
         client?.get("https://$target:8443/ping")?.body() ?: "failed"
     }
 
+    /**
+     * Resolves a .local hostname to an IP address using Android's Network Service Discovery (NSD).
+     * @param host The hostname to resolve.
+     * @return The resolved IP address or the original host if resolution fails.
+     */
     private suspend fun resolveHostToIp(host: String): String = withContext(Dispatchers.IO) {
         if (host.matches(Regex("^\\d{1,3}(\\.\\d{1,3}){3}$"))) return@withContext host
 
