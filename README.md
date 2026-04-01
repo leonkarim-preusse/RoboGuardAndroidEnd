@@ -16,6 +16,6 @@ This is the source code for the smartphone application of roboguard. Check [here
 2. Connection issues: ```adb kill-server``` ```adb start-server```
 
 ## Documentation
-1. 
-2.. All source code is found under ```~/app/src/main/java/com/example/roboguardandroid``` and documented in the Code
+1. ```Praktikumsbericht_fixed``` contains detailed explanations (in german)
+2. All source code is found under ```~/app/src/main/java/com/example/roboguardandroid``` and documented in the Code
 3. ```Main Activity.kt```controls the general flow of the application and should be understood befor further development
