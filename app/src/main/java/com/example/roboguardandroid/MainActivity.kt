@@ -737,6 +737,7 @@ fun SensorCategory(
 
     create_setting_category(UiText.get("settings.category.sensors")) {
         sensorList.forEach { sensorName ->
+            @Suppress("UNUSED_VARIABLE")
             var sensorExpanded by remember { mutableStateOf(false) }
             val sensorEnabled = sensorStates.getOrDefault(sensorName, true)
             Column(modifier = Modifier.fillMaxWidth()) {
@@ -744,7 +745,8 @@ fun SensorCategory(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { sensorExpanded = !sensorExpanded }
+                        // Nothing folds out any more, so tapping the row does nothing (see below).
+//                        .clickable { sensorExpanded = !sensorExpanded }
                         .padding(horizontal = 20.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -766,46 +768,48 @@ fun SensorCategory(
                         }
                     )
 
-                    Icon(
-                        imageVector = Icons.Default.KeyboardArrowDown,
-                        contentDescription = null,
-                        modifier = Modifier
-                            .padding(start = 8.dp)
-                            .rotate(if (sensorExpanded) 180f else 0f)
-                    )
+                    // Per-room settings switched off (2026-09-21): a sensor is set for the whole flat for now.
+                    // The rooms are still sent to the robot, only the way to fold them out here is commented out.
+//                    Icon(
+//                        imageVector = Icons.Default.KeyboardArrowDown,
+//                        contentDescription = null,
+//                        modifier = Modifier
+//                            .padding(start = 8.dp)
+//                            .rotate(if (sensorExpanded) 180f else 0f)
+//                    )
                 }
                 Divider()
-                if (sensorExpanded) {
-                    Column(modifier = Modifier.padding(start = 40.dp)) {
-                        rooms.forEach { room ->
-                            var checked by remember {
-                                mutableStateOf(
-                                    room.sensors[sensorName] ?: true
-                                )
-                            }
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Checkbox(
-                                    checked = checked,
-                                    onCheckedChange = { newValue ->
-                                        checked = newValue
-                                        room.update_sensors(sensorName, newValue)
-                                    }
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(room.name, fontSize = 14.sp)
-                            }
-
-                            if (!sensorEnabled && checked) {
-                                checked = false
-                            }
-                        }
-                    }
-                }
+//                if (sensorExpanded) {
+//                    Column(modifier = Modifier.padding(start = 40.dp)) {
+//                        rooms.forEach { room ->
+//                            var checked by remember {
+//                                mutableStateOf(
+//                                    room.sensors[sensorName] ?: true
+//                                )
+//                            }
+//                            Row(
+//                                modifier = Modifier
+//                                    .fillMaxWidth()
+//                                    .padding(vertical = 4.dp),
+//                                verticalAlignment = Alignment.CenterVertically
+//                            ) {
+//                                Checkbox(
+//                                    checked = checked,
+//                                    onCheckedChange = { newValue ->
+//                                        checked = newValue
+//                                        room.update_sensors(sensorName, newValue)
+//                                    }
+//                                )
+//                                Spacer(modifier = Modifier.width(8.dp))
+//                                Text(room.name, fontSize = 14.sp)
+//                            }
+//
+//                            if (!sensorEnabled && checked) {
+//                                checked = false
+//                            }
+//                        }
+//                    }
+//                }
             }
         }
     }
