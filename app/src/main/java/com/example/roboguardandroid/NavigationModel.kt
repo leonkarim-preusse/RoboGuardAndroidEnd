@@ -227,13 +227,14 @@ class NavigationClient(private val api: RobotAPI) {
                 }
             }
             is RobotAPI.NavCall.Refused -> {
-                _message.value = readMessage(answer.reason) ?: "The robot refused: ${answer.reason}"
+                _message.value = readMessage(answer.reason)
+                    ?: UiText.get("nav.message.refused", "reason" to answer.reason)
                 // A refused command still means the robot is there.
                 _connection.value = NavConnection.Online
                 retry()
             }
             is RobotAPI.NavCall.Unreachable -> {
-                _message.value = "The robot could not be reached: ${answer.reason}"
+                _message.value = UiText.get("nav.message.unreachable", "reason" to answer.reason)
                 _connection.value = NavConnection.Offline(answer.reason, System.currentTimeMillis())
             }
         }

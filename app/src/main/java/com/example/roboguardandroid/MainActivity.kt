@@ -102,6 +102,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        // Screen texts come from assets/texts/texts.json; load them before the first screen is built.
+        UiText.init(this)
         apiRob = RobotAPI(this)
 
         setContent {
@@ -150,7 +152,7 @@ fun QRscanUI(apiRob: RobotAPI, onPairingComplete: () -> Unit) {
         ) {
             HeaderAppName()
             Text(
-                "You need to scan the QR Code on your robot to pair your device.",
+                UiText.get("pair.instructions"),
                 fontSize = 40.sp, fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
 
                 modifier = Modifier
@@ -171,7 +173,7 @@ fun QRscanUI(apiRob: RobotAPI, onPairingComplete: () -> Unit) {
                     .align(Alignment.BottomCenter)
             ) {
                 Text(
-                    text = "Scan for QR Code!",
+                    text = UiText.get("pair.button.scan"),
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.White
@@ -227,11 +229,11 @@ fun QRscanUI(apiRob: RobotAPI, onPairingComplete: () -> Unit) {
                     onDismissRequest = { showErrorDialog = false; showQRValidation= false },
                     confirmButton = {
                         Button(onClick = { showErrorDialog = false; showQRValidation= false }) {
-                            Text("OK")
+                            Text(UiText.get("button.ok"))
                         }
                     },
-                    title = { Text("Oops something went wrong when pairing with your robot!") },
-                    text = { Text("Please try scanning the QR Code again.") },
+                    title = { Text(UiText.get("pair.error.title")) },
+                    text = { Text(UiText.get("pair.error.text")) },
                     containerColor = Color.White,
                     titleContentColor = Color.Red
                 )
@@ -308,25 +310,26 @@ fun StartUI(apiRob: RobotAPI, onUncouple: () -> Unit, onOpenNavigation: () -> Un
                 }
 
                 item {
-                    create_setting_category("Situational") {
+                    create_setting_category(UiText.get("settings.category.situational")) {
                         situationalList.forEach { settingName ->
                             create_row_settings(
                                 setting = settingName,
                                 isChecked = situationalStates[settingName] ?: false,
                                 onTextClick = {
                                     // Map info text based on name
+                                    // settingName comes from the robot, so it is matched, never displayed as a key.
                                     when (settingName) {
                                         "Discretion Mode" -> {
-                                            infoDialogTitle = "Discretion Mode"
-                                            infoDialogText = "The robot turns away automatically when it detects sensitive situations or nudity to protect your privacy."
+                                            infoDialogTitle = UiText.get("settings.info.discretion.title")
+                                            infoDialogText = UiText.get("settings.info.discretion.text")
                                         }
                                         "pixelate objects" -> {
-                                            infoDialogTitle = "Pixelate Objects"
-                                            infoDialogText = "When enabled, the robot's camera stream will automatically blur objects or persons marked as private."
+                                            infoDialogTitle = UiText.get("settings.info.pixelate.title")
+                                            infoDialogText = UiText.get("settings.info.pixelate.text")
                                         }
                                         else -> {
                                             infoDialogTitle = settingName
-                                            infoDialogText = "Specific information for $settingName is not available."
+                                            infoDialogText = UiText.get("settings.info.unknown.text", "setting" to settingName)
                                         }
                                     }
                                 }
@@ -339,8 +342,8 @@ fun StartUI(apiRob: RobotAPI, onUncouple: () -> Unit, onOpenNavigation: () -> Un
                 }
 
                 item {
-                    create_setting_category("Sleep") {
-                        create_row_settings_button("Sleep for", selectedTime) {
+                    create_setting_category(UiText.get("settings.category.sleep")) {
+                        create_row_settings_button(UiText.get("settings.sleep.label"), sleepTimeText(selectedTime)) {
                             showSleepPopup = true
                         }
 
@@ -362,7 +365,7 @@ fun StartUI(apiRob: RobotAPI, onUncouple: () -> Unit, onOpenNavigation: () -> Un
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
             ) {
                 Text(
-                    text = "Navigation and Map",
+                    text = UiText.get("settings.button.navigation"),
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.White
@@ -382,7 +385,7 @@ fun StartUI(apiRob: RobotAPI, onUncouple: () -> Unit, onOpenNavigation: () -> Un
                     colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
                 ) {
                     Text(
-                        text = "Pair again / Uncouple",
+                        text = UiText.get("settings.button.uncouple"),
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
@@ -413,7 +416,7 @@ fun StartUI(apiRob: RobotAPI, onUncouple: () -> Unit, onOpenNavigation: () -> Un
                     .padding(16.dp)
             ) {
                 Text(
-                    text = "Sync with your Robot!",
+                    text = UiText.get("settings.button.sync"),
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.White
@@ -426,7 +429,7 @@ fun StartUI(apiRob: RobotAPI, onUncouple: () -> Unit, onOpenNavigation: () -> Un
                     onDismissRequest = { infoDialogTitle = null; infoDialogText = null },
                     confirmButton = {
                         Button(onClick = { infoDialogTitle = null; infoDialogText = null }) {
-                            Text("OK")
+                            Text(UiText.get("button.ok"))
                         }
                     },
                     title = { Text(infoDialogTitle!!) },
@@ -442,11 +445,11 @@ fun StartUI(apiRob: RobotAPI, onUncouple: () -> Unit, onOpenNavigation: () -> Un
                         onDismissRequest = { syncStatus = null },
                         confirmButton = {
                             Button(onClick = { syncStatus = null }) {
-                                Text("OK")
+                                Text(UiText.get("button.ok"))
                             }
                         },
-                        title = { Text("Sync Successful!") },
-                        text = { Text("Your privacy settings were successfully saved on your robot") },
+                        title = { Text(UiText.get("sync.success.title")) },
+                        text = { Text(UiText.get("sync.success.text")) },
                         containerColor = Color.White
                     )
                 }
@@ -455,11 +458,11 @@ fun StartUI(apiRob: RobotAPI, onUncouple: () -> Unit, onOpenNavigation: () -> Un
                         onDismissRequest = { syncStatus = null },
                         confirmButton = {
                             Button(onClick = { syncStatus = null }) {
-                                Text("OK")
+                                Text(UiText.get("button.ok"))
                             }
                         },
-                        title = { Text("Sync Failed") },
-                        text = { Text("Could not connect to the robot. Please check your connection.") },
+                        title = { Text(UiText.get("sync.failed.title")) },
+                        text = { Text(UiText.get("sync.failed.text")) },
                         containerColor = Color.White
                     )
                 }
@@ -468,11 +471,11 @@ fun StartUI(apiRob: RobotAPI, onUncouple: () -> Unit, onOpenNavigation: () -> Un
                         onDismissRequest = { syncStatus = null },
                         confirmButton = {
                             Button(onClick = { syncStatus = null }) {
-                                Text("Update Now")
+                                Text(UiText.get("sync.reload.button"))
                             }
                         },
-                        title = { Text("Robot Config Changed") },
-                        text = { Text("The robot's available sensors or rooms have changed. The UI will now be updated.") },
+                        title = { Text(UiText.get("sync.reload.title")) },
+                        text = { Text(UiText.get("sync.reload.text")) },
                         containerColor = Color.White
                     )
                 }
@@ -486,7 +489,7 @@ fun StartUI(apiRob: RobotAPI, onUncouple: () -> Unit, onOpenNavigation: () -> Un
  * Displays the application header with the title.
  */
 @Composable
-fun HeaderAppName() {
+fun HeaderAppName(title: String = UiText.get("app.header.title")) {
     val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
 
     Box(
@@ -496,7 +499,7 @@ fun HeaderAppName() {
             .padding(top = statusBarPadding)
     ) {
         Text(
-            text = "RoboGuard\nPrivacy Settings",
+            text = title,
             fontSize = 42.sp,
             lineHeight = 50.sp,
             fontWeight = FontWeight.Bold,
@@ -596,7 +599,7 @@ fun create_setting_category(name: String, content: @Composable () -> Unit) {
             )
             Icon(
                 imageVector = Icons.Default.KeyboardArrowDown,
-                contentDescription = if (expanded) "Collapse" else "Expand",
+                contentDescription = UiText.get(if (expanded) "settings.category.collapse" else "settings.category.expand"),
                 modifier = Modifier.rotate(if (expanded) 180f else 0f)
             )
         }
@@ -637,11 +640,11 @@ fun sleepPopup(
                     .padding(24.dp)
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("Sleep for:", fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                    Text(UiText.get("sleep.dialog.title"), fontWeight = FontWeight.Bold, fontSize = 20.sp)
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    val options = listOf("Dont", "5 minutes", "10 minutes", "1 hour")
-                    options.forEach { option ->
+                    // The value stays fixed (parseSleepTimeToSeconds reads it); only the label comes from the texts.
+                    SLEEP_OPTIONS.forEach { option ->
                         Button(
                             onClick = {
                                 onSelect(option)
@@ -651,7 +654,7 @@ fun sleepPopup(
                                 .fillMaxWidth()
                                 .padding(vertical = 4.dp)
                         ) {
-                            Text(option)
+                            Text(sleepTimeText(option))
                         }
                     }
                     Spacer(modifier = Modifier.height(12.dp))
@@ -662,14 +665,14 @@ fun sleepPopup(
                     var minutes by remember { mutableStateOf("") }
                     var seconds by remember { mutableStateOf("") }
 
-                    Text("Custom Time", fontWeight = FontWeight.Bold)
+                    Text(UiText.get("sleep.custom.title"), fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.height(8.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
 
                         OutlinedTextField(
                             value = hours,
                             onValueChange = { hours = it.filter { c -> c.isDigit() } },
-                            label = { Text("Hours") },
+                            label = { Text(UiText.get("sleep.custom.hours")) },
                             modifier = Modifier.weight(1f),
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
@@ -677,7 +680,7 @@ fun sleepPopup(
                         OutlinedTextField(
                             value = minutes,
                             onValueChange = { minutes = it.filter { c -> c.isDigit() } },
-                            label = { Text("Minutes") },
+                            label = { Text(UiText.get("sleep.custom.minutes")) },
                             modifier = Modifier.weight(1f),
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
@@ -685,7 +688,7 @@ fun sleepPopup(
                         OutlinedTextField(
                             value = seconds,
                             onValueChange = { seconds = it.filter { c -> c.isDigit() } },
-                            label = { Text("Seconds") },
+                            label = { Text(UiText.get("sleep.custom.seconds")) },
                             modifier = Modifier.weight(1f),
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
@@ -701,7 +704,7 @@ fun sleepPopup(
                         },
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Set Custom Time")
+                        Text(UiText.get("sleep.button.set_custom"))
                     }
                     Spacer(modifier = Modifier.height(8.dp))
 
@@ -710,7 +713,7 @@ fun sleepPopup(
                         modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.buttonColors(containerColor = Color.LightGray)
                     ) {
-                        Text("Cancel")
+                        Text(UiText.get("button.cancel"))
                     }
                 }
             }
@@ -732,7 +735,7 @@ fun SensorCategory(
     sensorList: List<String>
     ) {
 
-    create_setting_category("Sensors") {
+    create_setting_category(UiText.get("settings.category.sensors")) {
         sensorList.forEach { sensorName ->
             var sensorExpanded by remember { mutableStateOf(false) }
             val sensorEnabled = sensorStates.getOrDefault(sensorName, true)
@@ -886,6 +889,21 @@ fun createSettingsJson(
         sleepTime = sleepTime
     )
     return Json { prettyPrint = true }.encodeToString<AppSettings>(settings)
+}
+
+/**
+ * The fixed sleep values. They are NOT texts: [parseSleepTimeToSeconds] turns exactly these strings into seconds for the
+ * robot, so they must not change when the wording does. [sleepTimeText] is what the person reads.
+ */
+val SLEEP_OPTIONS = listOf("Dont", "5 minutes", "10 minutes", "1 hour")
+
+/** The label for a sleep value; a freely typed duration ("0h 5m 0s") is shown as it is. */
+fun sleepTimeText(value: String): String = when (value) {
+    "Dont" -> UiText.get("sleep.option.none")
+    "5 minutes" -> UiText.get("sleep.option.5min")
+    "10 minutes" -> UiText.get("sleep.option.10min")
+    "1 hour" -> UiText.get("sleep.option.1hour")
+    else -> value
 }
 
 /**

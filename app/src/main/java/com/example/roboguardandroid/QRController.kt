@@ -182,7 +182,7 @@ fun CameraPermissionWrapper(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
-                Text("Camera permission required")
+                Text(UiText.get("pair.camera_permission"))
             }
         }
     }
@@ -230,10 +230,7 @@ fun parseQR(content: String?): QrData {
  */
 @Composable
 fun isQRvalidScreen(isValid:Boolean) {
-    var msg: String = "Please try to scan again! QR Code could not be verified."
-    if (isValid) {
-        msg = "Successfully scanned QR Code! Attempting to pair with robot!"
-    }
+    val msg = UiText.get(if (isValid) "pair.qr.valid" else "pair.qr.invalid")
     Box(modifier = Modifier.fillMaxSize()) {
     HeaderAppName()
     Text(

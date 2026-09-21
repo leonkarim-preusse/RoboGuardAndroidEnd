@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -27,18 +26,20 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.asImageBitmap
@@ -48,6 +49,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.roboguardandroid.ui.theme.RoboGuardAndroidTheme
 import kotlinx.coroutines.launch
 import kotlin.math.cos
 import kotlin.math.sin
@@ -59,8 +61,12 @@ import kotlin.math.sin
  * commands the robot's own screen sends. Nothing is decided here: the robot checks the privacy rules, refuses targets in
  * private areas and stops on its own — the phone only asks.
  *
- * Reachable only inside the local network; when the robot server cannot be found, the last known state stays on screen
- * with a clear offline banner instead of an empty map ([NavConnection]).
+ * Same look as the rest of the app: the blue header bar, ordinary buttons for ordinary actions, red for stopping and
+ * deleting, green for a yes (see [RoboGuardColors]). All texts come from `assets/texts/texts.json`.
+ *
+ * Like the robot's own screen it starts plain: the status lines and the robot's log only appear behind the "Show debug"
+ * switch at the bottom. Problems that stop the robot from driving (unreadable private areas, no localization) are shown
+ * without the switch, because they explain why nothing happens.
  */
 @Composable
 fun NavigationScreen(apiRob: RobotAPI, onBack: () -> Unit) {
@@ -76,9 +82,10 @@ fun NavigationScreen(apiRob: RobotAPI, onBack: () -> Unit) {
     val mapImage by client.mapImage.collectAsState()
     val message by client.message.collectAsState()
 
-    /** Name dialog: which command it belongs to, plus the suggested name. */
-    var askName by remember { mutableStateOf<Pair<String, String>?>(null) }
-    var showLog by remember { mutableStateOf(false) }
+    /** Name dialog: which command it belongs to. */
+    var askName by remember { mutableStateOf<String?>(null) }
+    var showDebug by rememberSaveable { mutableStateOf(false) }
+    var showLog by rememberSaveable { mutableStateOf(false) }
 
     BackHandler { onBack() }
 
@@ -86,172 +93,216 @@ fun NavigationScreen(apiRob: RobotAPI, onBack: () -> Unit) {
         scope.launch { client.command(action, build) }
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        HeaderAppName()
+    RoboGuardAndroidTheme {
+        Column(modifier = Modifier.fillMaxSize()) {
+            HeaderAppName(UiText.get("nav.header.title"))
 
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            OutlinedButton(onClick = onBack) { Text("Back") }
-            Text("Navigation and Map", fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-            ConnectionDot(connection)
-        }
-
-        ConnectionBanner(connection) { client.retry() }
-
-        val s = state
-        if (s != null && !s.running) {
-            Warning("The navigation is not running on the robot: ${s.error ?: "unknown reason"}")
-        }
-
-        LazyColumn(
-            modifier = Modifier.fillMaxWidth().weight(1f),
-            contentPadding = PaddingValues(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            item {
-                MapView(state, mapInfo, mapImage) { x, y -> send("point") { at(x, y) } }
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedButton(onClick = onBack) { Text(UiText.get("nav.button.back")) }
+                Box(modifier = Modifier.weight(1f))
+                ConnectionDot(connection)
             }
 
-            item { StatusLines(state) }
+            ConnectionBanner(connection) { client.retry() }
 
-            item {
-                // Driving: one big target button and a red STOP, like on the robot.
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(
-                        onClick = { send("drive") },
-                        enabled = state?.selected != null,
-                        modifier = Modifier.weight(1f)
-                    ) { Text("Drive to ${state?.selected?.name ?: "…"}") }
-                    Button(
-                        onClick = { send("stop") },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color.Red),
-                        modifier = Modifier.height(48.dp)
-                    ) { Text("STOP", fontWeight = FontWeight.Bold, color = Color.White) }
-                }
+            val s = state
+            if (s != null && !s.running) {
+                Warning(UiText.get("nav.warning.not_running", "reason" to (s.error ?: UiText.get("nav.label.unknown_reason"))))
             }
+            // Always visible, also without debug: these are the reasons the robot refuses to drive.
+            s?.areaStoreError?.let { Warning(UiText.get("nav.error.areas_unreadable", "error" to it)) }
+            s?.areaSaveWarning?.let { Warning(it) }
+            s?.locationStoreError?.let { Warning(UiText.get("nav.error.locations_unreadable", "error" to it)) }
 
-            item {
-                Section("Speed") {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf("SLOW" to "Slow", "MEDIUM" to "Medium", "DEFAULT" to "Robot default").forEach { (key, label) ->
-                            val active = state?.speed == key
-                            Button(
-                                onClick = { send("speed") { preset(key) } },
-                                colors = if (active) ButtonDefaults.buttonColors()
-                                else ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF1A73E8)),
-                                modifier = Modifier.weight(1f)
-                            ) { Text(label, fontSize = 12.sp) }
-                        }
-                    }
-                }
-            }
-
-            item {
-                Section("Places on the map") {
-                    val points = (state?.places.orEmpty() + state?.points.orEmpty())
-                    if (points.isEmpty()) Text("No places yet.", fontSize = 13.sp)
-                    points.forEach { point ->
-                        val selected = state?.selected?.name == point.name
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            OutlinedButton(
-                                onClick = { send("select") { name(point.name) } },
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Text(
-                                    "${if (selected) "▶ " else ""}${point.name}  (%.2f, %.2f)".format(point.x, point.y),
-                                    fontSize = 13.sp
-                                )
-                            }
-                            if (selected && point.persistent) {
-                                OutlinedButton(onClick = { send("deleteLocation") }) { Text("Delete", fontSize = 12.sp) }
-                            }
-                        }
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(
-                            onClick = { askName = "saveLocation" to "" },
-                            enabled = state?.localized == true
-                        ) { Text("Save position", fontSize = 12.sp) }
-                        OutlinedButton(onClick = { send("clearPoints") }) { Text("Clear tapped", fontSize = 12.sp) }
-                        OutlinedButton(onClick = { send("reload"); client.forgetMap() }) { Text("Reload map", fontSize = 12.sp) }
-                    }
-                }
-            }
-
-            item {
-                PrivateAreas(state, onAction = { action, name -> send(action) { name(name) } }, onAsk = { askName = it })
-            }
-
-            item {
-                OutlinedButton(onClick = { showLog = !showLog }) {
-                    Text(if (showLog) "Hide robot log" else "Show robot log", fontSize = 13.sp)
-                }
-            }
-            if (showLog) {
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth().weight(1f),
+                contentPadding = PaddingValues(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 item {
-                    Column(
-                        modifier = Modifier.fillMaxWidth().heightIn(max = 260.dp)
-                            .background(Color(0xFFF2F2F2), RoundedCornerShape(6.dp))
-                            .padding(6.dp).verticalScroll(rememberScrollState())
-                    ) {
-                        state?.log.orEmpty().forEach { Text(it, fontSize = 11.sp) }
+                    MapView(state, mapInfo, mapImage) { x, y -> send("point") { at(x, y) } }
+                }
+
+                item {
+                    // Driving: one big target button and a red STOP, like on the robot.
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(
+                            onClick = { send("drive") },
+                            enabled = state?.selected != null,
+                            modifier = Modifier.weight(1f).height(48.dp)
+                        ) {
+                            Text(
+                                state?.selected?.let { UiText.get("nav.button.drive_to", "location" to it.name) }
+                                    ?: UiText.get("nav.button.drive_to_none"),
+                                maxLines = 2
+                            )
+                        }
+                        Button(
+                            onClick = { send("stop") },
+                            colors = ButtonDefaults.buttonColors(containerColor = RoboGuardColors.Danger),
+                            modifier = Modifier.height(48.dp)
+                        ) { Text(UiText.get("nav.button.stop"), fontWeight = FontWeight.Bold, color = Color.White) }
+                    }
+                }
+
+                item {
+                    Section(UiText.get("nav.label.speed")) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            // The preset name is what the robot understands; only the label is a text.
+                            listOf("SLOW" to "nav.speed.slow", "MEDIUM" to "nav.speed.medium", "DEFAULT" to "nav.speed.default")
+                                .forEach { (preset, textKey) ->
+                                    val label = UiText.get(textKey)
+                                    if (state?.speed == preset) {
+                                        Button(onClick = { send("speed") { preset(preset) } }, modifier = Modifier.weight(1f)) {
+                                            Text(label, fontSize = 12.sp, maxLines = 1)
+                                        }
+                                    } else {
+                                        OutlinedButton(onClick = { send("speed") { preset(preset) } }, modifier = Modifier.weight(1f)) {
+                                            Text(label, fontSize = 12.sp, maxLines = 1)
+                                        }
+                                    }
+                                }
+                        }
+                    }
+                }
+
+                item {
+                    Section(UiText.get("nav.label.places")) {
+                        val points = (state?.places.orEmpty() + state?.points.orEmpty())
+                        if (points.isEmpty()) Text(UiText.get("nav.label.no_places"), fontSize = 13.sp)
+                        points.forEach { point ->
+                            val selected = state?.selected?.name == point.name
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                val label = UiText.get(
+                                    "nav.label.place",
+                                    "name" to point.name,
+                                    "x" to "%.2f".format(point.x),
+                                    "y" to "%.2f".format(point.y)
+                                )
+                                if (selected) {
+                                    Button(onClick = { send("select") { name(point.name) } }, modifier = Modifier.weight(1f)) {
+                                        Text(label, fontSize = 13.sp)
+                                    }
+                                } else {
+                                    OutlinedButton(onClick = { send("select") { name(point.name) } }, modifier = Modifier.weight(1f)) {
+                                        Text(label, fontSize = 13.sp)
+                                    }
+                                }
+                                // Only places saved in RoboGuard can be deleted; the robot's own map places cannot.
+                                if (selected && point.persistent) {
+                                    OutlinedButton(onClick = { send("deleteLocation") }) {
+                                        Text(UiText.get("nav.button.delete"), fontSize = 12.sp, color = RoboGuardColors.Danger)
+                                    }
+                                }
+                            }
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(
+                                onClick = { askName = "saveLocation" },
+                                enabled = state?.localized == true
+                            ) { Text(UiText.get("nav.button.save_position"), fontSize = 12.sp) }
+                            OutlinedButton(onClick = { send("clearPoints") }) {
+                                Text(UiText.get("nav.button.clear_points"), fontSize = 12.sp)
+                            }
+                            OutlinedButton(onClick = { send("reload"); client.forgetMap() }) {
+                                Text(UiText.get("nav.button.reload_map"), fontSize = 12.sp)
+                            }
+                        }
+                    }
+                }
+
+                item {
+                    PrivateAreas(
+                        state,
+                        onAction = { action, name -> send(action) { name(name) } },
+                        onAsk = { askName = it }
+                    )
+                }
+
+                if (showDebug) {
+                    item { StatusLines(state) }
+                    item {
+                        OutlinedButton(onClick = { showLog = !showLog }) {
+                            Text(UiText.get(if (showLog) "nav.button.hide_log" else "nav.button.show_log"), fontSize = 13.sp)
+                        }
+                    }
+                    if (showLog) {
+                        item {
+                            Column(
+                                modifier = Modifier.fillMaxWidth().heightIn(max = 260.dp)
+                                    .background(RoboGuardColors.LogBackground, RoundedCornerShape(6.dp))
+                                    .padding(6.dp).verticalScroll(rememberScrollState())
+                            ) {
+                                state?.log.orEmpty().forEach { Text(it, fontSize = 11.sp) }
+                            }
+                        }
+                    }
+                }
+
+                item {
+                    // Same idea as on the robot: everything technical sits behind this one switch.
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Switch(checked = showDebug, onCheckedChange = { showDebug = it })
+                        Text(UiText.get("nav.switch.debug"), fontSize = 14.sp, modifier = Modifier.padding(start = 8.dp))
                     }
                 }
             }
         }
-    }
 
-    // The robot asks whether it may cross a private area; the phone may answer it just like the robot's own screen.
-    state?.question?.let { question ->
-        CrossingDialog(
-            area = question.area,
-            onAllow = { minutes -> send("answerPrivacy") { id(question.id); minutes(minutes) } },
-            onDeny = { send("answerPrivacy") { id(question.id) } }
-        )
-    }
+        // The robot asks whether it may cross a private area; the phone may answer it just like the robot's own screen.
+        state?.question?.let { question ->
+            CrossingDialog(
+                area = question.area,
+                onAllow = { minutes -> send("answerPrivacy") { id(question.id); minutes(minutes) } },
+                onDeny = { send("answerPrivacy") { id(question.id) } }
+            )
+        }
 
-    askName?.let { (action, suggestion) ->
-        NameDialog(
-            title = when (action) {
-                "saveLocation" -> "Name for this position"
-                "areaCircle" -> "Name for the private area"
-                else -> "Name for the drawn area"
-            },
-            suggestion = suggestion,
-            onCancel = { askName = null },
-            onConfirm = { typed -> askName = null; send(action) { name(typed) } }
-        )
-    }
+        askName?.let { action ->
+            NameDialog(
+                title = UiText.get(
+                    when (action) {
+                        "saveLocation" -> "nav.dialog.name.position"
+                        "areaCircle" -> "nav.dialog.name.area"
+                        else -> "nav.dialog.name.drawn_area"
+                    }
+                ),
+                onCancel = { askName = null },
+                onConfirm = { typed -> askName = null; send(action) { name(typed) } }
+            )
+        }
 
-    message?.let { text ->
-        AlertDialog(
-            onDismissRequest = { client.clearMessage() },
-            confirmButton = { Button(onClick = { client.clearMessage() }) { Text("OK") } },
-            title = { Text("The robot says") },
-            text = { Text(text) },
-            containerColor = Color.White
-        )
+        message?.let { text ->
+            AlertDialog(
+                onDismissRequest = { client.clearMessage() },
+                confirmButton = { Button(onClick = { client.clearMessage() }) { Text(UiText.get("button.ok")) } },
+                title = { Text(UiText.get("nav.dialog.message.title")) },
+                text = { Text(text) },
+                containerColor = Color.White
+            )
+        }
     }
 }
 
-/** Green/red dot plus the state word, so the connection is visible without reading the banner. */
+/** Coloured dot plus the state word, so the connection is visible without reading the banner. */
 @Composable
 private fun ConnectionDot(connection: NavConnection) {
-    val (color, label) = when (connection) {
-        is NavConnection.Online -> Color(0xFF2E7D32) to "connected"
-        is NavConnection.Connecting -> Color(0xFF9E9E9E) to "connecting"
-        is NavConnection.Offline -> Color.Red to "offline"
-        is NavConnection.Refused -> Color(0xFFEF6C00) to "refused"
+    val (color, key) = when (connection) {
+        is NavConnection.Online -> RoboGuardColors.Good to "nav.state.connected"
+        is NavConnection.Connecting -> RoboGuardColors.Idle to "nav.state.connecting"
+        is NavConnection.Offline -> RoboGuardColors.Danger to "nav.state.offline"
+        is NavConnection.Refused -> RoboGuardColors.Warn to "nav.state.refused"
     }
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         Box(modifier = Modifier.size(10.dp).background(color, RoundedCornerShape(5.dp)))
-        Text(label, fontSize = 12.sp, color = color)
+        Text(UiText.get(key), fontSize = 12.sp, color = color)
     }
 }
 
@@ -265,16 +316,17 @@ private fun ConnectionBanner(connection: NavConnection, onRetry: () -> Unit) {
         is NavConnection.Offline -> {
             val seconds = ((System.currentTimeMillis() - connection.since) / 1000).coerceAtLeast(0)
             Warning(
-                "The robot server was not found (${connection.reason}).\n" +
-                    "Check that the phone is in the same WiFi as the robot and that the robot is switched on. " +
-                    "Showing the last known state, ${seconds}s old.",
+                UiText.get("nav.banner.offline", "reason" to connection.reason, "seconds" to seconds),
                 onRetry
             )
         }
         is NavConnection.Refused -> {
-            // 401 is the one worth explaining: the pairing is gone, so nothing on this screen will work until it is redone.
-            val extra = if (connection.code == 401) " The pairing with this robot is no longer valid; pair again." else ""
-            Warning("The robot refused the request (${connection.code}).$extra ${connection.reason}", onRetry)
+            // 401 is the one worth explaining: the pairing is gone, so nothing here works until it is redone.
+            val extra = if (connection.code == 401) UiText.get("nav.banner.refused.unpaired") else ""
+            Warning(
+                UiText.get("nav.banner.refused", "code" to connection.code, "extra" to extra, "reason" to connection.reason),
+                onRetry
+            )
         }
         else -> {}
     }
@@ -284,11 +336,13 @@ private fun ConnectionBanner(connection: NavConnection, onRetry: () -> Unit) {
 private fun Warning(text: String, onRetry: (() -> Unit)? = null) {
     Column(
         modifier = Modifier.fillMaxWidth().padding(8.dp)
-            .background(Color(0xFFFFE5E5), RoundedCornerShape(6.dp)).padding(8.dp)
+            .background(RoboGuardColors.ErrorBackground, RoundedCornerShape(6.dp)).padding(8.dp)
     ) {
-        Text(text, fontSize = 13.sp, color = Color(0xFFB00020))
+        Text(text, fontSize = 13.sp, color = RoboGuardColors.ErrorText)
         if (onRetry != null) {
-            OutlinedButton(onClick = onRetry, modifier = Modifier.padding(top = 4.dp)) { Text("Try again") }
+            OutlinedButton(onClick = onRetry, modifier = Modifier.padding(top = 4.dp)) {
+                Text(UiText.get("nav.button.retry"))
+            }
         }
     }
 }
@@ -301,24 +355,30 @@ private fun Section(title: String, content: @Composable () -> Unit) {
     }
 }
 
-/** Map name, localization, SDK control, what the robot is doing, and who is steering it. */
+/** Debug lines: map name, localization, SDK control, what the robot is doing, and who is steering it. */
 @Composable
 private fun StatusLines(state: NavState?) {
+    fun yesNo(value: Boolean?) = UiText.get(
+        when (value) { true -> "nav.label.yes"; false -> "nav.label.no"; null -> "nav.label.unknown" }
+    )
     Column {
-        Text("Map: ${state?.map ?: "—"}", fontSize = 13.sp)
+        Text(UiText.get("nav.label.map", "map" to (state?.map ?: UiText.get("nav.label.unknown"))), fontSize = 13.sp)
         Text(
-            "Localized: ${state?.localized?.let { if (it) "yes" else "no" } ?: "?"}   " +
-                "SDK control: ${if (state?.sdkControl == true) "yes" else "no"}",
+            UiText.get("nav.label.localized", "state" to yesNo(state?.localized), "sdk" to yesNo(state?.sdkControl)),
             fontSize = 13.sp,
             // Without localization the robot refuses to drive, so it is worth showing in red.
-            color = if (state?.localized == false) Color.Red else Color.Unspecified
+            color = if (state?.localized == false) RoboGuardColors.Danger else Color.Unspecified
         )
-        Text("Navigation: ${state?.navState.orEmpty()}", fontSize = 13.sp)
-        state?.pose?.let { Text("Position: (%.2f, %.2f)".format(it.x, it.y), fontSize = 13.sp) }
-        state?.remoteControl?.let { Text("Steered from: $it", fontSize = 12.sp, color = Color(0xFF1A73E8)) }
-        state?.areaStoreError?.let { Text("Private areas could not be read: $it", fontSize = 13.sp, color = Color.Red) }
-        state?.areaSaveWarning?.let { Text(it, fontSize = 13.sp, color = Color.Red) }
-        state?.locationStoreError?.let { Text("Saved places could not be read: $it", fontSize = 13.sp, color = Color.Red) }
+        Text(UiText.get("nav.label.navigation", "state" to state?.navState.orEmpty()), fontSize = 13.sp)
+        state?.pose?.let {
+            Text(
+                UiText.get("nav.label.position", "x" to "%.2f".format(it.x), "y" to "%.2f".format(it.y)),
+                fontSize = 13.sp
+            )
+        }
+        state?.remoteControl?.let {
+            Text(UiText.get("nav.label.remote", "client" to it), fontSize = 12.sp, color = RoboGuardColors.Header)
+        }
     }
 }
 
@@ -335,15 +395,16 @@ private fun MapView(
 ) {
     if (info == null || image == null) {
         Box(
-            modifier = Modifier.fillMaxWidth().height(180.dp).background(Color(0xFFEEEEEE), RoundedCornerShape(6.dp)),
+            modifier = Modifier.fillMaxWidth().height(180.dp)
+                .background(RoboGuardColors.Surface, RoundedCornerShape(6.dp)),
             contentAlignment = Alignment.Center
-        ) { Text("No map picture yet", fontSize = 13.sp) }
+        ) { Text(UiText.get("nav.map.none"), fontSize = 13.sp) }
         return
     }
     val ratio = if (info.heightPx > 0) info.widthPx.toFloat() / info.heightPx else 1f
     Box(
         modifier = Modifier.fillMaxWidth().aspectRatio(ratio)
-            .background(Color(0xFFEEEEEE), RoundedCornerShape(6.dp))
+            .background(RoboGuardColors.Surface, RoundedCornerShape(6.dp))
             .pointerInput(info) {
                 detectTapGestures { offset ->
                     // Picture pixel -> robot coordinates; the top row of the picture is the highest y.
@@ -355,7 +416,7 @@ private fun MapView(
     ) {
         Image(
             bitmap = image.asImageBitmap(),
-            contentDescription = "Map of the robot",
+            contentDescription = UiText.get("nav.map.description"),
             modifier = Modifier.fillMaxSize(),
             contentScale = ContentScale.Fit
         )
@@ -363,7 +424,7 @@ private fun MapView(
             fun px(x: Double) = ((x - info.minX) / (info.maxX - info.minX) * size.width).toFloat()
             fun py(y: Double) = ((info.maxY - y) / (info.maxY - info.minY) * size.height).toFloat()
 
-            // Private areas (red), the one being drawn in blue.
+            // Private areas in red; one the robot may currently cross in orange, so a granted permission is visible.
             state?.areas.orEmpty().forEach { area ->
                 if (area.corners.size < 2) return@forEach
                 val path = Path().apply {
@@ -371,42 +432,41 @@ private fun MapView(
                     area.corners.drop(1).forEach { lineTo(px(it.x), py(it.y)) }
                     close()
                 }
-                // An area the robot may currently cross is drawn orange, so a granted permission is visible.
-                val color = if (area.allowedUntil != null) Color(0xFFFF9100) else Color.Red
+                val color = if (area.allowedUntil != null) RoboGuardColors.Allowed else RoboGuardColors.Danger
                 drawPath(path, color.copy(alpha = 0.25f))
                 drawPath(path, color, style = Stroke(width = 2f))
             }
             state?.drawing?.let { corners ->
-                corners.forEach { drawCircle(Color(0xFF1A73E8), radius = 5f, center = androidx.compose.ui.geometry.Offset(px(it.x), py(it.y))) }
+                corners.forEach { drawCircle(RoboGuardColors.Header, radius = 5f, center = Offset(px(it.x), py(it.y))) }
                 if (corners.size >= 2) {
                     val path = Path().apply {
                         moveTo(px(corners[0].x), py(corners[0].y))
                         corners.drop(1).forEach { lineTo(px(it.x), py(it.y)) }
                     }
-                    drawPath(path, Color(0xFF1A73E8), style = Stroke(width = 2f))
+                    drawPath(path, RoboGuardColors.Header, style = Stroke(width = 2f))
                 }
             }
 
             state?.places.orEmpty().forEach {
-                drawCircle(Color(0xFF2E7D32), radius = 6f, center = androidx.compose.ui.geometry.Offset(px(it.x), py(it.y)))
+                drawCircle(RoboGuardColors.Good, radius = 6f, center = Offset(px(it.x), py(it.y)))
             }
             state?.points.orEmpty().forEach {
-                drawCircle(Color(0xFF7B1FA2), radius = 6f, center = androidx.compose.ui.geometry.Offset(px(it.x), py(it.y)))
+                drawCircle(RoboGuardColors.OwnPoint, radius = 6f, center = Offset(px(it.x), py(it.y)))
             }
             state?.selected?.let {
-                drawCircle(Color(0xFF1A73E8), radius = 10f, style = Stroke(width = 3f),
-                    center = androidx.compose.ui.geometry.Offset(px(it.x), py(it.y)))
+                drawCircle(RoboGuardColors.Header, radius = 10f, style = Stroke(width = 3f), center = Offset(px(it.x), py(it.y)))
             }
 
             // The robot: a dot with a line in its heading direction.
             state?.pose?.let { pose ->
-                val center = androidx.compose.ui.geometry.Offset(px(pose.x), py(pose.y))
+                val center = Offset(px(pose.x), py(pose.y))
                 drawCircle(Color.Black, radius = 7f, center = center)
-                val nose = androidx.compose.ui.geometry.Offset(
-                    px(pose.x + 0.4 * cos(pose.theta)),
-                    py(pose.y + 0.4 * sin(pose.theta))
+                drawLine(
+                    Color.Black,
+                    center,
+                    Offset(px(pose.x + 0.4 * cos(pose.theta)), py(pose.y + 0.4 * sin(pose.theta))),
+                    strokeWidth = 3f
                 )
-                drawLine(Color.Black, center, nose, strokeWidth = 3f)
             }
         }
     }
@@ -417,12 +477,12 @@ private fun MapView(
 private fun PrivateAreas(
     state: NavState?,
     onAction: (String, String) -> Unit,
-    onAsk: (Pair<String, String>) -> Unit
+    onAsk: (String) -> Unit
 ) {
     val drawing = state?.drawing
-    Section("Private areas") {
+    Section(UiText.get("nav.label.areas")) {
         if (state?.areasLoaded == false) {
-            Text("Not loaded yet — the robot refuses to drive until they are.", fontSize = 12.sp, color = Color.Red)
+            Text(UiText.get("nav.label.areas_not_loaded"), fontSize = 12.sp, color = RoboGuardColors.Danger)
         }
         state?.areas.orEmpty().forEach { area ->
             Row(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -431,36 +491,42 @@ private fun PrivateAreas(
                     area.allowedUntil?.let { until ->
                         // Counted against the ROBOT's clock, so the countdown does not depend on the phone's time.
                         val left = ((until - (state?.now ?: 0L)) / 1000).coerceAtLeast(0)
-                        Text("temporarily allowed, %d:%02d left".format(left / 60, left % 60), fontSize = 11.sp, color = Color(0xFFFF9100))
+                        Text(
+                            UiText.get("nav.label.area_allowed", "time" to "%d:%02d".format(left / 60, left % 60)),
+                            fontSize = 11.sp,
+                            color = RoboGuardColors.Allowed
+                        )
                     }
                 }
                 if (area.allowedUntil != null) {
-                    OutlinedButton(onClick = { onAction("revokeArea", area.name) }) { Text("✕", fontSize = 12.sp) }
+                    OutlinedButton(onClick = { onAction("revokeArea", area.name) }) {
+                        Text(UiText.get("nav.button.revoke"), fontSize = 12.sp)
+                    }
                 }
-                OutlinedButton(onClick = { onAction("deleteArea", area.name) }) { Text("Delete", fontSize = 12.sp) }
+                OutlinedButton(onClick = { onAction("deleteArea", area.name) }) {
+                    Text(UiText.get("nav.button.delete"), fontSize = 12.sp, color = RoboGuardColors.Danger)
+                }
             }
         }
-        if (state?.areas.orEmpty().isEmpty()) Text("No private areas on this map.", fontSize = 13.sp)
+        if (state?.areas.orEmpty().isEmpty()) Text(UiText.get("nav.label.no_areas"), fontSize = 13.sp)
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (drawing == null) {
-                OutlinedButton(
-                    onClick = { onAsk("areaCircle" to "") },
-                    enabled = state?.selected != null
-                ) { Text("Circle around selection", fontSize = 12.sp) }
-                OutlinedButton(onClick = { onAction("drawStart", "") }) { Text("Draw area", fontSize = 12.sp) }
+                OutlinedButton(onClick = { onAsk("areaCircle") }, enabled = state?.selected != null) {
+                    Text(UiText.get("nav.button.area_circle"), fontSize = 12.sp)
+                }
+                OutlinedButton(onClick = { onAction("drawStart", "") }) {
+                    Text(UiText.get("nav.button.draw_area"), fontSize = 12.sp)
+                }
             } else {
-                OutlinedButton(onClick = { onAction("drawUndo", "") }) { Text("Undo", fontSize = 12.sp) }
-                OutlinedButton(onClick = { onAction("drawCancel", "") }) { Text("Cancel", fontSize = 12.sp) }
-                OutlinedButton(
-                    onClick = { onAsk("drawFinish" to "") },
-                    enabled = drawing.size >= 3
-                ) { Text("Finish (${drawing.size})", fontSize = 12.sp) }
+                OutlinedButton(onClick = { onAction("drawUndo", "") }) { Text(UiText.get("nav.button.undo"), fontSize = 12.sp) }
+                OutlinedButton(onClick = { onAction("drawCancel", "") }) { Text(UiText.get("nav.button.cancel_drawing"), fontSize = 12.sp) }
+                OutlinedButton(onClick = { onAsk("drawFinish") }, enabled = drawing.size >= 3) {
+                    Text(UiText.get("nav.button.finish_area", "corners" to drawing.size), fontSize = 12.sp)
+                }
             }
         }
-        if (drawing != null) {
-            Text("Tap the map to add corners of the area.", fontSize = 12.sp)
-        }
+        if (drawing != null) Text(UiText.get("nav.hint.drawing"), fontSize = 12.sp)
     }
 }
 
@@ -470,14 +536,20 @@ private fun CrossingDialog(area: String, onAllow: (Int) -> Unit, onDeny: () -> U
     var minutes by remember { mutableStateOf(5) }
     AlertDialog(
         onDismissRequest = { /* must be answered: ignoring it would leave the robot standing */ },
-        title = { Text("Allow crossing \"$area\"?") },
+        title = { Text(UiText.get("nav.dialog.crossing.title", "area" to area)) },
         text = {
             Column {
-                Text("The robot's way goes through this private area. Yes allows it for $minutes minutes.", fontSize = 14.sp)
+                Text(UiText.get("nav.dialog.crossing.text", "minutes" to minutes), fontSize = 14.sp)
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 8.dp)) {
                     listOf(1, 2, 5, 10, 60).forEach { value ->
-                        OutlinedButton(onClick = { minutes = value }, contentPadding = PaddingValues(8.dp)) {
-                            Text(if (value == minutes) "[$value]" else "$value", fontSize = 12.sp)
+                        if (value == minutes) {
+                            Button(onClick = { minutes = value }, contentPadding = PaddingValues(8.dp)) {
+                                Text("$value", fontSize = 12.sp)
+                            }
+                        } else {
+                            OutlinedButton(onClick = { minutes = value }, contentPadding = PaddingValues(8.dp)) {
+                                Text("$value", fontSize = 12.sp)
+                            }
                         }
                     }
                 }
@@ -486,11 +558,14 @@ private fun CrossingDialog(area: String, onAllow: (Int) -> Unit, onDeny: () -> U
         confirmButton = {
             Button(
                 onClick = { onAllow(minutes) },
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32))
-            ) { Text("Yes") }
+                colors = ButtonDefaults.buttonColors(containerColor = RoboGuardColors.Good)
+            ) { Text(UiText.get("nav.button.yes"), color = Color.White) }
         },
         dismissButton = {
-            Button(onClick = onDeny, colors = ButtonDefaults.buttonColors(containerColor = Color.Red)) { Text("No") }
+            Button(
+                onClick = onDeny,
+                colors = ButtonDefaults.buttonColors(containerColor = RoboGuardColors.Danger)
+            ) { Text(UiText.get("nav.button.no"), color = Color.White) }
         },
         containerColor = Color.White
     )
@@ -498,14 +573,16 @@ private fun CrossingDialog(area: String, onAllow: (Int) -> Unit, onDeny: () -> U
 
 /** Asks for a name (saved position, private area) and lets the robot check it — names must be unique there. */
 @Composable
-private fun NameDialog(title: String, suggestion: String, onCancel: () -> Unit, onConfirm: (String) -> Unit) {
-    var text by remember { mutableStateOf(suggestion) }
+private fun NameDialog(title: String, onCancel: () -> Unit, onConfirm: (String) -> Unit) {
+    var text by remember { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = onCancel,
         title = { Text(title) },
         text = { OutlinedTextField(value = text, onValueChange = { text = it }, singleLine = true) },
-        confirmButton = { Button(onClick = { onConfirm(text.trim()) }, enabled = text.isNotBlank()) { Text("OK") } },
-        dismissButton = { OutlinedButton(onClick = onCancel) { Text("Cancel") } },
+        confirmButton = {
+            Button(onClick = { onConfirm(text.trim()) }, enabled = text.isNotBlank()) { Text(UiText.get("button.ok")) }
+        },
+        dismissButton = { OutlinedButton(onClick = onCancel) { Text(UiText.get("button.cancel")) } },
         containerColor = Color.White
     )
 }
