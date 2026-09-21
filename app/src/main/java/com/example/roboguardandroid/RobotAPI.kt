@@ -17,9 +17,11 @@ import io.ktor.client.request.headers
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
+import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
+import io.ktor.http.isSuccess
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -329,6 +331,83 @@ class RobotAPI(private val context: Context) {
             Json.decodeFromString<RobotCapabilities>(json)
         } catch (e: Exception) {
             RobotCapabilities()
+        }
+    }
+
+    // ---- Navigation and Map (the robot's own screen, shown on the phone) ------------------------
+
+    /**
+     * One call to the robot's navigation routes. [Unreachable] and [Refused] are kept apart on purpose: "the robot is not
+     * in this network" is something the person can fix (same WiFi, robot switched on), a refused call is not.
+     */
+    sealed class NavCall<out T> {
+        /** The robot answered. */
+        data class Ok<T>(val value: T) : NavCall<T>()
+        /** The robot server could not be reached at all (wrong network, robot off, mDNS name not found). */
+        data class Unreachable(val reason: String) : NavCall<Nothing>()
+        /** The robot answered, but refused or could not do it (403 outside the local network, 401, 400, 503). */
+        data class Refused(val code: Int, val reason: String) : NavCall<Nothing>()
+    }
+
+    /** The whole navigation state as JSON text (see the robot's NavigationRoutes.stateJson). */
+    suspend fun navState(): NavCall<String> = navGet("/nav/state")
+
+    /** Size, resolution and world coordinates of the map picture. */
+    suspend fun navMapInfo(): NavCall<String> = navGet("/nav/map.json")
+
+    /** The rendered map as PNG bytes. */
+    suspend fun navMapImage(): NavCall<ByteArray> = navRequest("/nav/map.png", null) { it.body<ByteArray>() }
+
+    /** Sends one command (JSON, see NavigationRoutes.handleCommand); the answer is the new state. */
+    suspend fun navCommand(body: String): NavCall<String> = navRequest("/nav/command", body) { it.bodyAsText() }
+
+    private suspend fun navGet(path: String): NavCall<String> = navRequest(path, null) { it.bodyAsText() }
+
+    /**
+     * Signs and sends one navigation request. [body] null = GET (the signature then covers the empty string, exactly like
+     * the other GET routes). Everything that is not an answer from the robot becomes [NavCall.Unreachable], so the screen
+     * can say "robot not found" instead of showing an empty map.
+     */
+    private suspend fun <T> navRequest(
+        path: String,
+        body: String?,
+        read: suspend (HttpResponse) -> T
+    ): NavCall<T> = withContext(Dispatchers.IO) {
+        if (!isCoupled || client == null) return@withContext NavCall.Unreachable("no robot paired with this phone")
+        try {
+            ensureConnection()
+            val target = currentResolvedIp ?: robotIP
+                ?: return@withContext NavCall.Unreachable("the robot's address is unknown")
+            val signature = createSignature(body ?: "", getSharedSecret() ?: "")
+            val response: HttpResponse = if (body == null) {
+                client!!.get("https://$target:8443$path") {
+                    headers {
+                        append("X-Client-Id", getId().toString())
+                        append("X-Client-Secret", signature)
+                        append("X-Client-name", getDeviceName())
+                    }
+                }
+            } else {
+                client!!.post("https://$target:8443$path") {
+                    headers {
+                        append("X-Client-Id", getId().toString())
+                        append("X-Client-Secret", signature)
+                        append("X-Client-name", getDeviceName())
+                    }
+                    contentType(ContentType.Text.Plain)
+                    setBody(body)
+                }
+            }
+            if (response.status.isSuccess()) {
+                NavCall.Ok(read(response))
+            } else {
+                // A refused command still carries the robot's own wording in the body; keep it for the screen.
+                val text = runCatching { response.bodyAsText() }.getOrDefault("")
+                NavCall.Refused(response.status.value, text.ifBlank { response.status.description })
+            }
+        } catch (e: Exception) {
+            Log.w("RobotAPI", "navigation request $path failed: ${e.message}")
+            NavCall.Unreachable(e.message ?: e.javaClass.simpleName)
         }
     }
 

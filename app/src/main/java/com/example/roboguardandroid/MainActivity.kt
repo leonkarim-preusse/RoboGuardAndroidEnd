@@ -111,8 +111,18 @@ class MainActivity : ComponentActivity() {
                 modifier = Modifier.fillMaxSize()
             ) { innerPadding ->
                 Box(modifier = Modifier.padding(innerPadding)) {
+                    // The navigation screen is a second full screen, shown instead of the settings.
+                    var showNavigation by remember { mutableStateOf(false) }
                     if (isCoupled) {
-                        StartUI(apiRob, onUncouple = { isCoupled = false })
+                        if (showNavigation) {
+                            NavigationScreen(apiRob, onBack = { showNavigation = false })
+                        } else {
+                            StartUI(
+                                apiRob,
+                                onUncouple = { isCoupled = false },
+                                onOpenNavigation = { showNavigation = true }
+                            )
+                        }
                     } else {
                         QRscanUI(apiRob) { isCoupled = true }
                     }
@@ -244,7 +254,7 @@ fun QRscanUI(apiRob: RobotAPI, onPairingComplete: () -> Unit) {
  * @param onUncouple Callback triggered when the user chooses to uncouple.
  */
 @Composable
-fun StartUI(apiRob: RobotAPI, onUncouple: () -> Unit) {
+fun StartUI(apiRob: RobotAPI, onUncouple: () -> Unit, onOpenNavigation: () -> Unit = {}) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
@@ -341,6 +351,22 @@ fun StartUI(apiRob: RobotAPI, onUncouple: () -> Unit) {
                         )
                     }
                 }
+            }
+
+            // Navigation and Map: the robot's own screen, shown on the phone (local network only).
+            Button(
+                onClick = onOpenNavigation,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 16.dp, end = 16.dp, top = 8.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+            ) {
+                Text(
+                    text = "Navigation and Map",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
             }
 
             // Uncouple Button

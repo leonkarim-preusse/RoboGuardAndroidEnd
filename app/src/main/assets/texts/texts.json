@@ -1,0 +1,136 @@
+{
+  "_readme": [
+    "Every text the RoboGuard phone app shows. One entry per text: change \"text\" and the app shows the new wording after the next start — no code change.",
+    "\"note\" says where the text appears and is never shown to anyone.",
+    "Placeholders are written in curly braces, e.g. \"Drive to {location}\"; the app fills them in. Keep them in the wording, otherwise that piece of information disappears.",
+    "Keys are read by the code; do not rename them. A missing key shows the key name on screen (visible instead of an empty label).",
+    "To change language, translate the \"text\" values here. Internal values (sleep durations, sensor names) are NOT texts and stay as they are."
+  ],
+  "meta": {
+    "note": "Reserved for settings that belong to the texts themselves."
+  },
+  "texts": {
+    "app.header.title": { "text": "RoboGuard\nPrivacy Settings", "note": "Blue header at the top of the settings screen." },
+
+    "button.ok": { "text": "OK", "note": "Closes an information or error dialog." },
+    "button.cancel": { "text": "Cancel", "note": "Closes a dialog without doing anything." },
+
+    "pair.instructions": { "text": "You need to scan the QR Code on your robot to pair your device.", "note": "Big text on the pairing screen, before any robot is paired." },
+    "pair.button.scan": { "text": "Scan for QR Code!", "note": "Button at the bottom of the pairing screen; opens the camera." },
+    "pair.error.title": { "text": "Oops something went wrong when pairing with your robot!", "note": "Dialog headline when the handshake with the robot failed." },
+    "pair.error.text": { "text": "Please try scanning the QR Code again.", "note": "Dialog text under that headline." },
+    "pair.qr.valid": { "text": "Successfully scanned QR Code! Attempting to pair with robot!", "note": "Shown right after a QR code was read and looks valid." },
+    "pair.qr.invalid": { "text": "Please try to scan again! QR Code could not be verified.", "note": "Shown when the scanned code is not a RoboGuard pairing code." },
+    "pair.camera_permission": { "text": "Camera permission required", "note": "Shown instead of the camera when the camera permission was refused." },
+
+    "settings.category.sensors": { "text": "Sensors", "note": "Headline of the sensor section (camera, microphone, …), tap to fold out." },
+    "settings.category.situational": { "text": "Situational", "note": "Headline of the situational section (discretion mode, pixelate objects)." },
+    "settings.category.sleep": { "text": "Sleep", "note": "Headline of the sleep section." },
+    "settings.category.expand": { "text": "Expand", "note": "Spoken description of the arrow of a folded section (screen readers only)." },
+    "settings.category.collapse": { "text": "Collapse", "note": "Spoken description of the arrow of an open section (screen readers only)." },
+    "settings.sleep.label": { "text": "Sleep for", "note": "Row in the sleep section, in front of the chosen duration." },
+
+    "settings.info.discretion.title": { "text": "Discretion Mode", "note": "Headline of the information dialog for discretion mode." },
+    "settings.info.discretion.text": { "text": "The robot turns away automatically when it detects sensitive situations or nudity to protect your privacy.", "note": "Explanation of discretion mode; shown when its name is tapped." },
+    "settings.info.pixelate.title": { "text": "Pixelate Objects", "note": "Headline of the information dialog for pixelating objects." },
+    "settings.info.pixelate.text": { "text": "When enabled, the robot's camera stream will automatically blur objects or persons marked as private.", "note": "Explanation of object pixelation; shown when its name is tapped." },
+    "settings.info.unknown.text": { "text": "Specific information for {setting} is not available.", "note": "Fallback explanation for a setting the app has no text for ({setting} = its name from the robot)." },
+
+    "settings.button.navigation": { "text": "Navigation and Map", "note": "Green button that opens the robot's map screen on the phone." },
+    "settings.button.uncouple": { "text": "Pair again / Uncouple", "note": "Red button: forgets this robot, back to the pairing screen." },
+    "settings.button.sync": { "text": "Sync with your Robot!", "note": "Sends the privacy settings to the robot." },
+
+    "sync.success.title": { "text": "Sync Successful!", "note": "Dialog headline after the robot accepted the settings." },
+    "sync.success.text": { "text": "Your privacy settings were successfully saved on your robot", "note": "Dialog text after a successful save." },
+    "sync.failed.title": { "text": "Sync Failed", "note": "Dialog headline when the settings could not be sent." },
+    "sync.failed.text": { "text": "Could not connect to the robot. Please check your connection.", "note": "Dialog text when the robot could not be reached." },
+    "sync.reload.title": { "text": "Robot Config Changed", "note": "Dialog headline when the robot now offers other sensors or rooms." },
+    "sync.reload.text": { "text": "The robot's available sensors or rooms have changed. The UI will now be updated.", "note": "Dialog text for that case." },
+    "sync.reload.button": { "text": "Update Now", "note": "Button that reloads the screen with the robot's new configuration." },
+
+    "sleep.dialog.title": { "text": "Sleep for:", "note": "Headline of the dialog that picks how long the robot sleeps." },
+    "sleep.option.none": { "text": "Dont", "note": "Sleep choice: the robot does not sleep." },
+    "sleep.option.5min": { "text": "5 minutes", "note": "Sleep choice: five minutes." },
+    "sleep.option.10min": { "text": "10 minutes", "note": "Sleep choice: ten minutes." },
+    "sleep.option.1hour": { "text": "1 hour", "note": "Sleep choice: one hour." },
+    "sleep.custom.title": { "text": "Custom Time", "note": "Headline over the three fields for a freely typed duration." },
+    "sleep.custom.hours": { "text": "Hours", "note": "Label of the hours field." },
+    "sleep.custom.minutes": { "text": "Minutes", "note": "Label of the minutes field." },
+    "sleep.custom.seconds": { "text": "Seconds", "note": "Label of the seconds field." },
+    "sleep.button.set_custom": { "text": "Set Custom Time", "note": "Takes the typed duration." },
+
+    "nav.header.title": { "text": "Navigation and Map", "note": "Header of the map screen on the phone." },
+    "nav.button.back": { "text": "Back", "note": "Leaves the map screen. The robot keeps driving." },
+    "nav.switch.debug": { "text": "Show debug", "note": "Switch at the bottom: shows the status lines and the robot's log." },
+
+    "nav.state.connected": { "text": "connected", "note": "Next to the green dot: the robot is answering." },
+    "nav.state.connecting": { "text": "connecting", "note": "Next to the grey dot: the first answer is still on its way." },
+    "nav.state.offline": { "text": "offline", "note": "Next to the red dot: the robot server was not found." },
+    "nav.state.refused": { "text": "refused", "note": "Next to the orange dot: the robot answered but refused." },
+
+    "nav.banner.offline": { "text": "The robot server was not found ({reason}).\nCheck that the phone is in the same WiFi as the robot and that the robot is switched on. Showing the last known state, {seconds}s old.", "note": "Red banner while the robot cannot be reached ({reason} = technical cause, {seconds} = age of the shown state)." },
+    "nav.banner.refused": { "text": "The robot refused the request ({code}).{extra} {reason}", "note": "Red banner when the robot answered with an error ({code} = HTTP code, {extra} = explanation below, {reason} = the robot's wording)." },
+    "nav.banner.refused.unpaired": { "text": " The pairing with this robot is no longer valid; pair again.", "note": "Added to the banner above when the robot no longer knows this phone (401). Starts with a space." },
+    "nav.button.retry": { "text": "Try again", "note": "Button in the red banner: try to reach the robot again now." },
+    "nav.warning.not_running": { "text": "The navigation is not running on the robot: {reason}", "note": "Shown when the robot answers but its navigation is not started." },
+    "nav.label.unknown_reason": { "text": "unknown reason", "note": "Used when the robot gives no reason." },
+
+    "nav.button.drive_to": { "text": "Drive to {location}", "note": "Big button; {location} = the selected place." },
+    "nav.button.drive_to_none": { "text": "Drive to …", "note": "Same button while nothing is selected (it is switched off then)." },
+    "nav.button.stop": { "text": "STOP", "note": "Red button: stops the drive at once." },
+
+    "nav.label.speed": { "text": "Speed", "note": "Headline over the three speed buttons." },
+    "nav.speed.slow": { "text": "Slow", "note": "Speed choice: slow." },
+    "nav.speed.medium": { "text": "Medium", "note": "Speed choice: medium." },
+    "nav.speed.default": { "text": "Robot default", "note": "Speed choice: whatever the robot uses by itself." },
+
+    "nav.label.places": { "text": "Places on the map", "note": "Headline over the list of places." },
+    "nav.label.no_places": { "text": "No places yet.", "note": "Shown when the robot's map has no places." },
+    "nav.label.place": { "text": "{name}  ({x}, {y})", "note": "One entry of the place list ({x}/{y} = coordinates in metres)." },
+    "nav.button.save_position": { "text": "Save position", "note": "Saves where the robot stands right now as a named place." },
+    "nav.button.clear_points": { "text": "Clear tapped", "note": "Removes the points tapped on the map; named places stay." },
+    "nav.button.reload_map": { "text": "Reload map", "note": "Makes the robot read its map and places again." },
+    "nav.button.delete": { "text": "Delete", "note": "Deletes the selected place, or a private area." },
+
+    "nav.label.areas": { "text": "Private areas", "note": "Headline over the list of private areas." },
+    "nav.label.no_areas": { "text": "No private areas on this map.", "note": "Shown when no area is marked private." },
+    "nav.label.areas_not_loaded": { "text": "Not loaded yet — the robot refuses to drive until they are.", "note": "Shown while the robot has not read its private areas (it does not drive then, on purpose)." },
+    "nav.label.area_allowed": { "text": "temporarily allowed, {time} left", "note": "Under an area the robot may currently cross ({time} = minutes:seconds)." },
+    "nav.button.revoke": { "text": "✕", "note": "Ends a temporary permission to cross an area right now." },
+    "nav.button.area_circle": { "text": "Circle around selection", "note": "Marks a circle around the selected place as private." },
+    "nav.button.draw_area": { "text": "Draw area", "note": "Starts drawing a private area on the map." },
+    "nav.button.undo": { "text": "Undo", "note": "Removes the last corner while drawing." },
+    "nav.button.cancel_drawing": { "text": "Cancel", "note": "Throws the half-drawn area away." },
+    "nav.button.finish_area": { "text": "Finish ({corners})", "note": "Closes the drawn area ({corners} = number of corners so far)." },
+    "nav.hint.drawing": { "text": "Tap the map to add corners of the area.", "note": "Hint while an area is being drawn." },
+
+    "nav.map.none": { "text": "No map picture yet", "note": "Placeholder while the map picture has not arrived." },
+    "nav.map.description": { "text": "Map of the robot", "note": "Spoken description of the map picture (screen readers only)." },
+
+    "nav.label.map": { "text": "Map: {map}", "note": "Debug line: which map the robot uses." },
+    "nav.label.localized": { "text": "Localized: {state}   SDK control: {sdk}", "note": "Debug line: does the robot know where it is, and may it use the robot system." },
+    "nav.label.navigation": { "text": "Navigation: {state}", "note": "Debug line: what the robot is doing right now." },
+    "nav.label.position": { "text": "Position: ({x}, {y})", "note": "Debug line: where the robot stands, in metres." },
+    "nav.label.yes": { "text": "yes", "note": "Answer in the debug lines." },
+    "nav.label.no": { "text": "no", "note": "Answer in the debug lines." },
+    "nav.label.unknown": { "text": "?", "note": "Answer in the debug lines when the robot did not say." },
+    "nav.label.remote": { "text": "Steered from: {client}", "note": "Shown while a phone is steering the robot ({client} = its name)." },
+    "nav.error.areas_unreadable": { "text": "Private areas could not be read: {error}", "note": "The robot cannot read its saved private areas; it refuses to drive then." },
+    "nav.error.locations_unreadable": { "text": "Saved places could not be read: {error}", "note": "The robot cannot read its saved places." },
+    "nav.button.show_log": { "text": "Show robot log", "note": "Shows the robot's own event log." },
+    "nav.button.hide_log": { "text": "Hide robot log", "note": "Hides that log again." },
+
+    "nav.dialog.crossing.title": { "text": "Allow crossing \"{area}\"?", "note": "The robot asks whether it may cross a private area ({area} = its name)." },
+    "nav.dialog.crossing.text": { "text": "The robot's way goes through this private area. Yes allows it for {minutes} minutes.", "note": "Text of that question; {minutes} = the chosen duration." },
+    "nav.button.yes": { "text": "Yes", "note": "Green: allows crossing for the chosen minutes." },
+    "nav.button.no": { "text": "No", "note": "Red: the robot stays out of the area." },
+
+    "nav.dialog.name.position": { "text": "Name for this position", "note": "Headline when a place is being named." },
+    "nav.dialog.name.area": { "text": "Name for the private area", "note": "Headline when a circular private area is being named." },
+    "nav.dialog.name.drawn_area": { "text": "Name for the drawn area", "note": "Headline when a drawn private area is being named." },
+
+    "nav.dialog.message.title": { "text": "The robot says", "note": "Headline of the dialog that shows the robot's answer to a command." },
+    "nav.message.unreachable": { "text": "The robot could not be reached: {reason}", "note": "Shown when a command did not arrive." },
+    "nav.message.refused": { "text": "The robot refused: {reason}", "note": "Shown when the robot refused a command without its own wording." }
+  }
+}
