@@ -61,7 +61,10 @@
 
     "nav.header.title": { "text": "Navigation and Map", "note": "Header of the map screen on the phone." },
     "nav.button.back": { "text": "Back", "note": "Leaves the map screen. The robot keeps driving." },
-    "nav.switch.debug": { "text": "Show debug", "note": "Switch at the bottom: shows the status lines and the robot's log." },
+    "nav.switch.debug": { "text": "Debug mode", "note": "Switch at the bottom, only shown while debug mode is on (tap the header 7 times); switching it off hides the debug parts again." },
+    "debug.toast.steps": { "text": "{taps} more taps to switch on debug mode", "note": "Toast while the header is tapped repeatedly (from the third tap)." },
+    "debug.toast.on": { "text": "Debug mode is on", "note": "Toast after the last tap on the header." },
+    "debug.toast.already_on": { "text": "Debug mode is already on", "note": "Toast when the header is tapped while debug mode is on." },
 
     "nav.state.connected": { "text": "connected", "note": "Next to the green dot: the robot is answering." },
     "nav.state.connecting": { "text": "connecting", "note": "Next to the grey dot: the first answer is still on its way." },

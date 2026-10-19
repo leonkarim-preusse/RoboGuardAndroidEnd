@@ -9,6 +9,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -104,6 +105,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         // Screen texts come from assets/texts/texts.json; load them before the first screen is built.
         UiText.init(this)
+        DebugMode.init(this)
         apiRob = RobotAPI(this)
 
         setContent {
@@ -491,12 +493,17 @@ fun StartUI(apiRob: RobotAPI, onUncouple: () -> Unit, onOpenNavigation: () -> Un
 @Composable
 fun HeaderAppName(title: String = UiText.get("app.header.title")) {
     val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val context = LocalContext.current
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .background(Color(0xFF1A73E8))
             .padding(top = statusBarPadding)
+            // Tapped 7 times it switches on the hidden debug mode (see DebugMode), like Android's build number.
+            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
+                DebugMode.tapHeader(context)
+            }
     ) {
         Text(
             text = title,

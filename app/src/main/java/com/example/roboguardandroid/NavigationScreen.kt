@@ -31,6 +31,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -84,7 +85,9 @@ fun NavigationScreen(apiRob: RobotAPI, onBack: () -> Unit) {
 
     /** Name dialog: which command it belongs to. */
     var askName by remember { mutableStateOf<String?>(null) }
-    var showDebug by rememberSaveable { mutableStateOf(false) }
+    // Hidden debug mode (tap the header 7 times, see DebugMode): speed, status lines and the robot's log.
+    val showDebug by DebugMode.enabled.collectAsState()
+    val context = LocalContext.current
     var showLog by rememberSaveable { mutableStateOf(false) }
 
     BackHandler { onBack() }
@@ -149,7 +152,7 @@ fun NavigationScreen(apiRob: RobotAPI, onBack: () -> Unit) {
                     }
                 }
 
-                item {
+                if (showDebug) item {
                     Section(UiText.get("nav.label.speed")) {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             // The preset name is what the robot understands; only the label is a text.
@@ -246,10 +249,10 @@ fun NavigationScreen(apiRob: RobotAPI, onBack: () -> Unit) {
                     }
                 }
 
-                item {
-                    // Same idea as on the robot: everything technical sits behind this one switch.
+                // Same as on the robot: debug mode is switched on by tapping the header 7 times; this switch only turns it off.
+                if (showDebug) item {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Switch(checked = showDebug, onCheckedChange = { showDebug = it })
+                        Switch(checked = true, onCheckedChange = { if (!it) DebugMode.set(context, false) })
                         Text(UiText.get("nav.switch.debug"), fontSize = 14.sp, modifier = Modifier.padding(start = 8.dp))
                     }
                 }
