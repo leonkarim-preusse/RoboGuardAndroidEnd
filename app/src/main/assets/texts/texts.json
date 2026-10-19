@@ -31,9 +31,9 @@
     "settings.sleep.label": { "text": "Sleep for", "note": "Row in the sleep section, in front of the chosen duration." },
 
     "settings.info.discretion.title": { "text": "Discretion Mode", "note": "Headline of the information dialog for discretion mode." },
-    "settings.info.discretion.text": { "text": "The robot turns away automatically when it detects sensitive situations or nudity to protect your privacy.", "note": "Explanation of discretion mode; shown when its name is tapped." },
+    "settings.info.discretion.text": { "text": "The robot will detect conversations and ask if he is allowed to listen to them. The user can decide to mute the robot's microphone for a time or tell him to leave.", "note": "Explanation of discretion mode; shown when its name is tapped." },
     "settings.info.pixelate.title": { "text": "Pixelate Objects", "note": "Headline of the information dialog for pixelating objects." },
-    "settings.info.pixelate.text": { "text": "When enabled, the robot's camera stream will automatically blur objects or persons marked as private.", "note": "Explanation of object pixelation; shown when its name is tapped." },
+    "settings.info.pixelate.text": { "text": "The robot will detect objects like a calendar and ask if he should save detected appointments or blur the object in its memory.", "note": "Explanation of object pixelation; shown when its name is tapped." },
     "settings.info.unknown.text": { "text": "Specific information for {setting} is not available.", "note": "Fallback explanation for a setting the app has no text for ({setting} = its name from the robot)." },
 
     "settings.button.navigation": { "text": "Navigation and Map", "note": "Green button that opens the robot's map screen on the phone." },
@@ -89,9 +89,8 @@
 
     "nav.label.places": { "text": "Places on the map", "note": "Headline over the list of places." },
     "nav.label.no_places": { "text": "No places yet.", "note": "Shown when the robot's map has no places." },
-    "nav.label.place": { "text": "{name}  ({x}, {y})", "note": "One entry of the place list ({x}/{y} = coordinates in metres)." },
     "nav.button.save_position": { "text": "Save position", "note": "Saves where the robot stands right now as a named place." },
-    "nav.button.clear_points": { "text": "Clear tapped", "note": "Removes the points tapped on the map; named places stay." },
+    "nav.button.clear_points": { "text": "Clear temporary points", "note": "Removes the points tapped on the map; named places stay." },
     "nav.button.reload_map": { "text": "Reload map", "note": "Makes the robot read its map and places again." },
     "nav.button.delete": { "text": "Delete", "note": "Deletes the selected place, or a private area." },
 

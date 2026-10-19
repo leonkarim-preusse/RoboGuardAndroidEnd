@@ -278,7 +278,8 @@ fun StartUI(apiRob: RobotAPI, onUncouple: () -> Unit, onOpenNavigation: () -> Un
     }
 
     val situationalStates = remember(refreshKey) {
-        val initialMap = situationalList.associateWith { false }.toMutableMap()
+        // All situational features on by default, like the sensors (owner, 2026-10-19).
+        val initialMap = situationalList.associateWith { true }.toMutableMap()
         mutableStateMapOf<String, Boolean>().apply { putAll(initialMap) }
     }
 
@@ -320,8 +321,9 @@ fun StartUI(apiRob: RobotAPI, onUncouple: () -> Unit, onOpenNavigation: () -> Un
                                 onTextClick = {
                                     // Map info text based on name
                                     // settingName comes from the robot, so it is matched, never displayed as a key.
-                                    when (settingName) {
-                                        "Discretion Mode" -> {
+                                    // Case-insensitive: the robot sends "Pixelate Objects", the phone's own default list "pixelate objects".
+                                    when (settingName.lowercase()) {
+                                        "discretion mode" -> {
                                             infoDialogTitle = UiText.get("settings.info.discretion.title")
                                             infoDialogText = UiText.get("settings.info.discretion.text")
                                         }
@@ -343,19 +345,20 @@ fun StartUI(apiRob: RobotAPI, onUncouple: () -> Unit, onOpenNavigation: () -> Un
                     }
                 }
 
-                item {
-                    create_setting_category(UiText.get("settings.category.sleep")) {
-                        create_row_settings_button(UiText.get("settings.sleep.label"), sleepTimeText(selectedTime)) {
-                            showSleepPopup = true
-                        }
-
-                        sleepPopup(
-                            show = showSleepPopup,
-                            onDismiss = { showSleepPopup = false },
-                            onSelect = { selectedTime = it }
-                        )
-                    }
-                }
+                // Sleep category hidden (owner, 2026-10-19); the value is still kept and sent with every save.
+                // item {
+                //     create_setting_category(UiText.get("settings.category.sleep")) {
+                //         create_row_settings_button(UiText.get("settings.sleep.label"), sleepTimeText(selectedTime)) {
+                //             showSleepPopup = true
+                //         }
+                //
+                //         sleepPopup(
+                //             show = showSleepPopup,
+                //             onDismiss = { showSleepPopup = false },
+                //             onSelect = { selectedTime = it }
+                //         )
+                //     }
+                // }
             }
 
             // Navigation and Map: the robot's own screen, shown on the phone (local network only).

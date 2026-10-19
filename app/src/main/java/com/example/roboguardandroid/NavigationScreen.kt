@@ -134,7 +134,8 @@ fun NavigationScreen(apiRob: RobotAPI, onBack: () -> Unit) {
                     // Driving: one big target button and a red STOP, like on the robot.
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(
-                            onClick = { send("drive") },
+                            // The target this screen shows goes along: the robot refuses if its selection changed meanwhile.
+                            onClick = { state?.selected?.let { sel -> send("drive") { name(sel.name); at(sel.x, sel.y) } } },
                             enabled = state?.selected != null,
                             modifier = Modifier.weight(1f).height(48.dp)
                         ) {
@@ -144,7 +145,9 @@ fun NavigationScreen(apiRob: RobotAPI, onBack: () -> Unit) {
                                 maxLines = 2
                             )
                         }
+                        // Grey while the robot stands still, like on the robot's own screen.
                         Button(
+                            enabled = state?.moving == true,
                             onClick = { send("stop") },
                             colors = ButtonDefaults.buttonColors(containerColor = RoboGuardColors.Danger),
                             modifier = Modifier.height(48.dp)
@@ -183,12 +186,8 @@ fun NavigationScreen(apiRob: RobotAPI, onBack: () -> Unit) {
                                 modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                val label = UiText.get(
-                                    "nav.label.place",
-                                    "name" to point.name,
-                                    "x" to "%.2f".format(point.x),
-                                    "y" to "%.2f".format(point.y)
-                                )
+                                // Name only, no coordinates (owner, 2026-10-19).
+                                val label = point.name
                                 if (selected) {
                                     Button(onClick = { send("select") { name(point.name) } }, modifier = Modifier.weight(1f)) {
                                         Text(label, fontSize = 13.sp)

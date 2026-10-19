@@ -56,6 +56,8 @@ data class NavState(
     val localized: Boolean? = null,
     val sdkControl: Boolean = false,
     val navState: String = "",
+    /** The robot is driving or turning on the spot (STOP only does something then). */
+    val moving: Boolean = false,
     val speed: String = "DEFAULT",
     val speedLabel: String = "",
     val measuredSpeed: String? = null,
