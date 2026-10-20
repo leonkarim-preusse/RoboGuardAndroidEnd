@@ -19,3 +19,4 @@ This is the source code for the smartphone application of roboguard. Check [here
 1. ```Praktikumsbericht_fixed``` contains detailed explanations (in german)
 2. All source code is found under ```~/app/src/main/java/com/example/roboguardandroid``` and documented in the Code
 3. ```Main Activity.kt```controls the general flow of the application and should be understood before further development
+4. Added after the Praktikum: ```NavigationScreen.kt``` (map and driving from the phone), ```NavigationModel.kt``` (polls the robot's ```/nav/...``` routes, sends commands), ```UiText.kt``` with ```assets/texts/texts.json``` (every text on screen) and ```DebugMode.kt``` (debug mode by tapping the header 7 times)

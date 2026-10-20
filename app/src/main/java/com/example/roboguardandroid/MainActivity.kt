@@ -1,6 +1,7 @@
 package com.example.roboguardandroid
 
 import android.content.Context
+import io.ktor.client.statement.bodyAsText
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
@@ -69,6 +70,10 @@ import kotlinx.serialization.json.Json
 sealed class SyncResult {
     object Success : SyncResult()
     object Failed : SyncResult()
+    /** The robot saved the settings, but only some sensor switches were confirmed (e.g. RobotOS refused the SDK part). */
+    object Partial : SyncResult()
+    /** The robot answered with an error: no sensor switch was confirmed, or the settings could not be saved. */
+    object NotApplied : SyncResult()
     object ReloadNeeded : SyncResult()
 }
 
@@ -471,6 +476,32 @@ fun StartUI(apiRob: RobotAPI, onUncouple: () -> Unit, onOpenNavigation: () -> Un
                         containerColor = Color.White
                     )
                 }
+                is SyncResult.Partial -> {
+                    androidx.compose.material3.AlertDialog(
+                        onDismissRequest = { syncStatus = null },
+                        confirmButton = {
+                            Button(onClick = { syncStatus = null }) {
+                                Text(UiText.get("button.ok"))
+                            }
+                        },
+                        title = { Text(UiText.get("sync.partial.title")) },
+                        text = { Text(UiText.get("sync.partial.text")) },
+                        containerColor = Color.White
+                    )
+                }
+                is SyncResult.NotApplied -> {
+                    androidx.compose.material3.AlertDialog(
+                        onDismissRequest = { syncStatus = null },
+                        confirmButton = {
+                            Button(onClick = { syncStatus = null }) {
+                                Text(UiText.get("button.ok"))
+                            }
+                        },
+                        title = { Text(UiText.get("sync.not_applied.title")) },
+                        text = { Text(UiText.get("sync.not_applied.text")) },
+                        containerColor = Color.White
+                    )
+                }
                 is SyncResult.ReloadNeeded -> {
                     androidx.compose.material3.AlertDialog(
                         onDismissRequest = { syncStatus = null },
@@ -861,12 +892,19 @@ suspend fun syncRobot(
     Log.d("StartUI", "Settings JSON: $json")
 
     return try {
+        // The robot answers once its sensor switches have answered: "OK", "PARTIAL", or an error status.
         val response = apiRob.dataToRobot(json)
         if (response.status.value in 200..299) {
-            Log.d("RobotAPI", "Sync successful!")
-            SyncResult.Success
+            if (response.bodyAsText().trim() == "PARTIAL") {
+                Log.w("RobotAPI", "Sync partial: not every sensor switch was confirmed")
+                SyncResult.Partial
+            } else {
+                Log.d("RobotAPI", "Sync successful!")
+                SyncResult.Success
+            }
         } else {
-            SyncResult.Failed
+            Log.w("RobotAPI", "Robot answered ${response.status.value}: settings not applied")
+            SyncResult.NotApplied
         }
     } catch (e: Exception) {
         Log.e("RobotAPI", "Sync failed: ${e.message}")

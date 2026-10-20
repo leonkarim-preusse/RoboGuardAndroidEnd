@@ -177,6 +177,9 @@ class RobotAPI(private val context: Context) {
                         // enforce 1.1 because of Orionstar robot
                         protocols(listOf(okhttp3.Protocol.HTTP_1_1))
 
+                        // /save answers only after the robot's sensor switches have answered (up to ~8 s).
+                        readTimeout(20, java.util.concurrent.TimeUnit.SECONDS)
+
                         sslSocketFactory(sslContext.socketFactory, customTrustManager)
 
                         // accept IP address as hostname
@@ -336,16 +339,13 @@ class RobotAPI(private val context: Context) {
 
     // ---- Navigation and Map (the robot's own screen, shown on the phone) ------------------------
 
-    /**
-     * One call to the robot's navigation routes. [Unreachable] and [Refused] are kept apart on purpose: "the robot is not
-     * in this network" is something the person can fix (same WiFi, robot switched on), a refused call is not.
-     */
+    /** Result of one call to the robot's navigation routes: answered, unreachable, or refused by the robot. */
     sealed class NavCall<out T> {
         /** The robot answered. */
         data class Ok<T>(val value: T) : NavCall<T>()
         /** The robot server could not be reached at all (wrong network, robot off, mDNS name not found). */
         data class Unreachable(val reason: String) : NavCall<Nothing>()
-        /** The robot answered, but refused or could not do it (403 outside the local network, 401, 400, 503). */
+        /** The robot answered with an error status (e.g. 400, 401, 503). */
         data class Refused(val code: Int, val reason: String) : NavCall<Nothing>()
     }
 
@@ -361,6 +361,7 @@ class RobotAPI(private val context: Context) {
     /** Sends one command (JSON, see NavigationRoutes.handleCommand); the answer is the new state. */
     suspend fun navCommand(body: String): NavCall<String> = navRequest("/nav/command", body) { it.bodyAsText() }
 
+    /** A signed GET for the navigation routes; the body is returned as text. */
     private suspend fun navGet(path: String): NavCall<String> = navRequest(path, null) { it.bodyAsText() }
 
     /**

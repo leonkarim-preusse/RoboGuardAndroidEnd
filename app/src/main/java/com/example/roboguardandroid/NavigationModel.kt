@@ -15,13 +15,17 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
 /**
- * The robot's "Navigation and Map" screen, seen from the phone.
- *
- * The phone holds no navigation state of its own: it shows what the robot reports and sends commands back. The robot
- * remains the place where the privacy rules are checked — a phone that is out of range, switched off or simply wrong can
- * therefore never make the robot enter a private area.
+ * Data model and client of the phone's navigation screen. The phone only shows the state the robot reports and sends
+ * commands; the robot checks the privacy rules.
  */
 
+/**
+ * A RobotOS place or a location saved on the robot, in map coordinates (metres).
+ * @property name name of the place
+ * @property x x coordinate
+ * @property y y coordinate
+ * @property saved true for locations saved in RoboGuard, false for RobotOS places
+ */
 @Serializable
 data class NavPoint(
     val name: String,
@@ -33,9 +37,11 @@ data class NavPoint(
     val persistent: Boolean = false
 )
 
+/** The robot's position (metres) and heading (radians) as the robot reports it. */
 @Serializable
 data class NavPose(val x: Double, val y: Double, val theta: Double, val status: String = "")
 
+/** One corner of a private area, in map coordinates (metres). */
 @Serializable
 data class NavCorner(val x: Double, val y: Double)
 
@@ -47,6 +53,10 @@ data class NavArea(val name: String, val allowedUntil: Long? = null, val corners
 @Serializable
 data class NavQuestion(val id: Long, val area: String)
 
+/**
+ * The navigation state reported by `GET /nav/state`: map, position, drive state, places, areas, the open crossing question
+ * and the robot's log. Unknown fields are ignored; missing fields keep their defaults.
+ */
 @Serializable
 data class NavState(
     val ok: Boolean = false,
@@ -102,6 +112,7 @@ data class NavMapInfo(
 sealed class NavConnection {
     /** Nothing tried yet or the first answer is still on its way. */
     object Connecting : NavConnection()
+    /** The robot answered the last request. */
     object Online : NavConnection()
 
     /**
@@ -115,10 +126,9 @@ sealed class NavConnection {
 }
 
 /**
- * Polls the robot's navigation state and sends commands. One instance per open screen.
- *
- * While the robot answers, the state is refreshed every [POLL_MS]; when it cannot be reached, the screen keeps the last
- * known state visible, shows that it is offline and retries more slowly ([RETRY_MS]) instead of hammering the network.
+ * Polls the robot's navigation state every [POLL_MS] and sends commands. While the robot cannot be reached, the last
+ * state stays visible and polling slows down to [RETRY_MS].
+ * @param api connection to the robot
  */
 class NavigationClient(private val api: RobotAPI) {
 
@@ -140,12 +150,14 @@ class NavigationClient(private val api: RobotAPI) {
     private val _message = MutableStateFlow<String?>(null)
     val message: StateFlow<String?> = _message.asStateFlow()
 
+    /** Clears the command answer after the screen has shown it. */
     fun clearMessage() { _message.value = null }
 
     /** Forces a new attempt right away (the "Try again" button of the offline banner). */
     @Volatile
     private var retryNow = false
 
+    /** Asks [run] to try again at once instead of waiting for the next offline retry. */
     fun retry() { retryNow = true }
 
     /** Runs until the coroutine is cancelled (i.e. until the screen closes). */
@@ -191,7 +203,10 @@ class NavigationClient(private val api: RobotAPI) {
         }
     }
 
-    /** Loads the map picture once per map; a "reload" on the robot changes the map name or its size, which re-triggers it. */
+    /**
+     * Loads the map picture when the map name or size changes.
+     * @param mapName name of the robot's current map
+     */
     private suspend fun loadMapIfNeeded(mapName: String?) {
         if (mapName == null) return
         if (_mapInfo.value?.name == mapName && _mapImage.value != null) return
@@ -211,8 +226,9 @@ class NavigationClient(private val api: RobotAPI) {
     }
 
     /**
-     * Sends one command and takes the state from its answer, so the screen reacts immediately instead of after the next
-     * poll. A refusal from the robot (unknown name, not localized, areas not loaded) is shown as [message].
+     * Sends one command and takes the new state from the answer; a refusal is shown as [message].
+     * @param action command name
+     * @param build adds the command's parameters
      */
     suspend fun command(action: String, build: JsonObjectBuilderScope.() -> Unit = {}) {
         val body = buildJsonObject {
@@ -254,10 +270,15 @@ class NavigationClient(private val api: RobotAPI) {
 
     /** Small wrapper so screen code can add command parameters without importing the serialization builder. */
     class JsonObjectBuilderScope(private val builder: kotlinx.serialization.json.JsonObjectBuilder) {
+        /** Adds the name of a place, location or area. */
         fun name(value: String) = builder.put("name", value)
+        /** Adds map coordinates (metres). */
         fun at(x: Double, y: Double) { builder.put("x", x); builder.put("y", y) }
+        /** Adds a speed preset. */
         fun preset(value: String) = builder.put("preset", value)
+        /** Adds the id of the crossing question being answered. */
         fun id(value: Long) = builder.put("id", value)
+        /** Adds a number of minutes (crossing permission). */
         fun minutes(value: Int) = builder.put("minutes", value)
     }
 

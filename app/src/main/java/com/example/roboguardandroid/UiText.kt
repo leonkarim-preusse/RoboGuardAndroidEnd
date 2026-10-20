@@ -5,23 +5,9 @@ import android.util.Log
 import org.json.JSONObject
 
 /**
- * All texts the phone app shows. They live in one file, `assets/texts/texts.json`: one entry per text, so the wording — or
- * the whole language — can be changed there without touching the code. The robot app has the same arrangement for its own
- * screens and spoken sentences, so both ends of RoboGuard are worded in one readable place each.
- *
- * File format:
- * ```json
- * "settings.button.sync": { "text": "Sync with your Robot!", "note": "Sends the privacy settings to the robot" }
- * ```
- * `note` only says where the text appears and is never shown.
- *
- * Placeholders are named and written in curly braces, e.g. `"Drive to {location}"`; pass them as pairs:
- * `UiText.get("nav.button.drive_to", "location" to name)`. A missing key returns the key name, so a gap is visible on
- * screen instead of an empty label.
- *
- * Only DISPLAYED texts belong here. Values the app works with internally — sensor names from the robot, the sleep
- * durations that are turned into seconds — are not texts and must stay as they are, or the phone and the robot would stop
- * understanding each other.
+ * All texts shown by the phone app, loaded from `assets/texts/texts.json`. Each entry has a `text` and a `note`.
+ * Placeholders are written as `{name}` and passed as pairs to [get]. A missing key returns the key itself. Values used
+ * in the protocol with the robot (sensor names, sleep durations) are not texts and are not stored here.
  */
 object UiText {
 
@@ -63,8 +49,9 @@ object UiText {
     }
 
     /**
-     * The text for [key], with [placeholders] filled in ("location" to "Kitchen" replaces `{location}`).
-     * Unknown keys return the key itself and are logged.
+     * Returns the text for [key] with the placeholders filled in.
+     * @param key text key
+     * @param placeholders name → value pairs, e.g. "location" to "Kitchen" for `{location}`
      */
     fun get(key: String, vararg placeholders: Pair<String, Any?>): String {
         val template = texts[key] ?: run {
@@ -84,11 +71,7 @@ object UiText {
     val keys: Set<String> get() = texts.keys
 }
 
-/**
- * The colours of the RoboGuard phone app in one place, so every screen codes the same meaning with the same colour.
- * They are the ones the settings screen already used; the map screen now takes them from here instead of repeating hex
- * values.
- */
+/** The colours used by the app's screens. */
 object RoboGuardColors {
     /** Header bar, and anything that points at the robot itself (its position, the area being drawn). */
     val Header = androidx.compose.ui.graphics.Color(0xFF1A73E8)

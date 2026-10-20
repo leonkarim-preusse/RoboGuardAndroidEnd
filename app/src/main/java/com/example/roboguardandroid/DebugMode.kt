@@ -8,18 +8,15 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * Hidden debug mode, unlocked like Android's developer options: tap the blue header [TAPS_NEEDED] times in a row.
- * From the third tap a toast counts down; the last one switches debug mode on. It is switched off again with the
- * debug switch on the map screen, which is only visible while debug mode is on. Same behaviour as on the robot.
- *
- * Kept in SharedPreferences, so it is the same on every screen and survives a restart.
+ * Hidden debug mode: tapping the blue header [TAPS_NEEDED] times in a row switches it on, the debug switch on the map
+ * screen switches it off. Saved in SharedPreferences.
  */
 object DebugMode {
 
     private const val PREFS = "roboguard_debug_mode"
     private const val KEY = "enabled"
 
-    /** Taps in a row that unlock debug mode (Android's build number also needs 7). */
+    /** Taps in a row needed to switch debug mode on. */
     const val TAPS_NEEDED = 7
 
     /** A pause longer than this starts the count again. */
@@ -65,17 +62,20 @@ object DebugMode {
         }
     }
 
+    /** Switches debug mode on or off and saves it. */
     fun set(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean(KEY, on).apply()
         _enabled.value = on
         loaded = true
     }
 
+    /** Shows [text] as a toast, replacing the previous one. */
     private fun show(context: Context, text: String) {
         // Replace the previous toast so fast taps do not queue up a row of them.
         toast?.cancel()
         toast = Toast.makeText(context.applicationContext, text, Toast.LENGTH_SHORT).also { it.show() }
     }
 
+    /** The preferences that hold the debug mode. */
     private fun prefs(context: Context) = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 }

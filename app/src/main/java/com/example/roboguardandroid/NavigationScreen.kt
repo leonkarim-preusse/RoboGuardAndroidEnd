@@ -56,18 +56,10 @@ import kotlin.math.cos
 import kotlin.math.sin
 
 /**
- * The robot's "Navigation and Map" screen on the phone.
- *
- * It shows what the robot reports (map, its position, saved places, private areas, the event log) and sends the same
- * commands the robot's own screen sends. Nothing is decided here: the robot checks the privacy rules, refuses targets in
- * private areas and stops on its own — the phone only asks.
- *
- * Same look as the rest of the app: the blue header bar, ordinary buttons for ordinary actions, red for stopping and
- * deleting, green for a yes (see [RoboGuardColors]). All texts come from `assets/texts/texts.json`.
- *
- * Like the robot's own screen it starts plain: the status lines and the robot's log only appear behind the "Show debug"
- * switch at the bottom. Problems that stop the robot from driving (unreadable private areas, no localization) are shown
- * without the switch, because they explain why nothing happens.
+ * Navigation screen of the phone app: shows the robot's map, position, places, private areas and log, and sends the
+ * same commands as the robot's own screen. Status lines and the log are shown only in debug mode.
+ * @param apiRob connection to the robot
+ * @param onBack called when the screen is closed
  */
 @Composable
 fun NavigationScreen(apiRob: RobotAPI, onBack: () -> Unit) {
@@ -334,6 +326,7 @@ private fun ConnectionBanner(connection: NavConnection, onRetry: () -> Unit) {
     }
 }
 
+/** Red banner with [text]; shows a "Try again" button when [onRetry] is given. */
 @Composable
 private fun Warning(text: String, onRetry: (() -> Unit)? = null) {
     Column(
@@ -349,6 +342,7 @@ private fun Warning(text: String, onRetry: (() -> Unit)? = null) {
     }
 }
 
+/** A bold heading with its [content] below. */
 @Composable
 private fun Section(title: String, content: @Composable () -> Unit) {
     Column(modifier = Modifier.fillMaxWidth()) {
@@ -385,8 +379,8 @@ private fun StatusLines(state: NavState?) {
 }
 
 /**
- * The robot's map with its position, the places and the private areas. A tap sends "point" to the robot: it becomes a
- * target there, or the next corner while an area is being drawn — exactly what a tap does on the robot's own screen.
+ * The robot's map with its position, places and private areas. A tap sends "point" to the robot, which adds a target
+ * or, while an area is being drawn, a corner.
  */
 @Composable
 private fun MapView(
