@@ -283,7 +283,7 @@ fun StartUI(apiRob: RobotAPI, onUncouple: () -> Unit, onOpenNavigation: () -> Un
     }
 
     val situationalStates = remember(refreshKey) {
-        // All situational features on by default, like the sensors (owner, 2026-10-19).
+        // All situational features are on by default, like the sensors.
         val initialMap = situationalList.associateWith { true }.toMutableMap()
         mutableStateMapOf<String, Boolean>().apply { putAll(initialMap) }
     }
@@ -350,7 +350,7 @@ fun StartUI(apiRob: RobotAPI, onUncouple: () -> Unit, onOpenNavigation: () -> Un
                     }
                 }
 
-                // Sleep category hidden (owner, 2026-10-19); the value is still kept and sent with every save.
+                // Sleep category hidden; the value is still kept and sent with every save.
                 // item {
                 //     create_setting_category(UiText.get("settings.category.sleep")) {
                 //         create_row_settings_button(UiText.get("settings.sleep.label"), sleepTimeText(selectedTime)) {
@@ -809,7 +809,7 @@ fun SensorCategory(
                         }
                     )
 
-                    // Per-room settings switched off (2026-09-21): a sensor is set for the whole flat for now.
+                    // Per-room settings are disabled: a sensor applies to the whole flat.
                     // The rooms are still sent to the robot, only the way to fold them out here is commented out.
 //                    Icon(
 //                        imageVector = Icons.Default.KeyboardArrowDown,

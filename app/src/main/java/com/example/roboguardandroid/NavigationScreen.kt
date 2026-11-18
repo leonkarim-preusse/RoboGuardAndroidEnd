@@ -66,7 +66,6 @@ fun NavigationScreen(apiRob: RobotAPI, onBack: () -> Unit) {
     val client = remember { NavigationClient(apiRob) }
     val scope = rememberCoroutineScope()
 
-    // The poll loop lives as long as this screen; leaving it stops polling but NOT the robot's drive.
     LaunchedEffect(client) { client.run() }
 
     val state by client.state.collectAsState()
@@ -75,15 +74,18 @@ fun NavigationScreen(apiRob: RobotAPI, onBack: () -> Unit) {
     val mapImage by client.mapImage.collectAsState()
     val message by client.message.collectAsState()
 
-    /** Name dialog: which command it belongs to. */
     var askName by remember { mutableStateOf<String?>(null) }
-    // Hidden debug mode (tap the header 7 times, see DebugMode): speed, status lines and the robot's log.
     val showDebug by DebugMode.enabled.collectAsState()
     val context = LocalContext.current
     var showLog by rememberSaveable { mutableStateOf(false) }
 
     BackHandler { onBack() }
 
+    /**
+     * Sends one command to the robot.
+     * @param action command name
+     * @param build adds the command parameters
+     */
     fun send(action: String, build: NavigationClient.JsonObjectBuilderScope.() -> Unit = {}) {
         scope.launch { client.command(action, build) }
     }
@@ -108,7 +110,6 @@ fun NavigationScreen(apiRob: RobotAPI, onBack: () -> Unit) {
             if (s != null && !s.running) {
                 Warning(UiText.get("nav.warning.not_running", "reason" to (s.error ?: UiText.get("nav.label.unknown_reason"))))
             }
-            // Always visible, also without debug: these are the reasons the robot refuses to drive.
             s?.areaStoreError?.let { Warning(UiText.get("nav.error.areas_unreadable", "error" to it)) }
             s?.areaSaveWarning?.let { Warning(it) }
             s?.locationStoreError?.let { Warning(UiText.get("nav.error.locations_unreadable", "error" to it)) }
@@ -123,10 +124,8 @@ fun NavigationScreen(apiRob: RobotAPI, onBack: () -> Unit) {
                 }
 
                 item {
-                    // Driving: one big target button and a red STOP, like on the robot.
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(
-                            // The target this screen shows goes along: the robot refuses if its selection changed meanwhile.
                             onClick = { state?.selected?.let { sel -> send("drive") { name(sel.name); at(sel.x, sel.y) } } },
                             enabled = state?.selected != null,
                             modifier = Modifier.weight(1f).height(48.dp)
@@ -137,7 +136,6 @@ fun NavigationScreen(apiRob: RobotAPI, onBack: () -> Unit) {
                                 maxLines = 2
                             )
                         }
-                        // Grey while the robot stands still, like on the robot's own screen.
                         Button(
                             enabled = state?.moving == true,
                             onClick = { send("stop") },
@@ -150,7 +148,6 @@ fun NavigationScreen(apiRob: RobotAPI, onBack: () -> Unit) {
                 if (showDebug) item {
                     Section(UiText.get("nav.label.speed")) {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            // The preset name is what the robot understands; only the label is a text.
                             listOf("SLOW" to "nav.speed.slow", "MEDIUM" to "nav.speed.medium", "DEFAULT" to "nav.speed.default")
                                 .forEach { (preset, textKey) ->
                                     val label = UiText.get(textKey)
@@ -178,7 +175,6 @@ fun NavigationScreen(apiRob: RobotAPI, onBack: () -> Unit) {
                                 modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                // Name only, no coordinates (owner, 2026-10-19).
                                 val label = point.name
                                 if (selected) {
                                     Button(onClick = { send("select") { name(point.name) } }, modifier = Modifier.weight(1f)) {
@@ -189,7 +185,6 @@ fun NavigationScreen(apiRob: RobotAPI, onBack: () -> Unit) {
                                         Text(label, fontSize = 13.sp)
                                     }
                                 }
-                                // Only places saved in RoboGuard can be deleted; the robot's own map places cannot.
                                 if (selected && point.persistent) {
                                     OutlinedButton(onClick = { send("deleteLocation") }) {
                                         Text(UiText.get("nav.button.delete"), fontSize = 12.sp, color = RoboGuardColors.Danger)
@@ -240,7 +235,6 @@ fun NavigationScreen(apiRob: RobotAPI, onBack: () -> Unit) {
                     }
                 }
 
-                // Same as on the robot: debug mode is switched on by tapping the header 7 times; this switch only turns it off.
                 if (showDebug) item {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Switch(checked = true, onCheckedChange = { if (!it) DebugMode.set(context, false) })
@@ -250,7 +244,6 @@ fun NavigationScreen(apiRob: RobotAPI, onBack: () -> Unit) {
             }
         }
 
-        // The robot asks whether it may cross a private area; the phone may answer it just like the robot's own screen.
         state?.question?.let { question ->
             CrossingDialog(
                 area = question.area,
@@ -285,7 +278,10 @@ fun NavigationScreen(apiRob: RobotAPI, onBack: () -> Unit) {
     }
 }
 
-/** Coloured dot plus the state word, so the connection is visible without reading the banner. */
+/**
+ * Coloured dot plus the state word, so the connection is visible without reading the banner.
+ * @param connection connection state
+ */
 @Composable
 private fun ConnectionDot(connection: NavConnection) {
     val (color, key) = when (connection) {
@@ -301,8 +297,9 @@ private fun ConnectionDot(connection: NavConnection) {
 }
 
 /**
- * What to do when the robot cannot be found. This is the common case in a flat: phone on mobile data, robot switched off,
- * or a different WiFi — so it says which of those to check instead of only "error".
+ * Shown when the robot cannot be reached; names the usual causes.
+ * @param connection connection state
+ * @param onRetry called by "Try again"
  */
 @Composable
 private fun ConnectionBanner(connection: NavConnection, onRetry: () -> Unit) {
@@ -315,7 +312,6 @@ private fun ConnectionBanner(connection: NavConnection, onRetry: () -> Unit) {
             )
         }
         is NavConnection.Refused -> {
-            // 401 is the one worth explaining: the pairing is gone, so nothing here works until it is redone.
             val extra = if (connection.code == 401) UiText.get("nav.banner.refused.unpaired") else ""
             Warning(
                 UiText.get("nav.banner.refused", "code" to connection.code, "extra" to extra, "reason" to connection.reason),
@@ -326,7 +322,11 @@ private fun ConnectionBanner(connection: NavConnection, onRetry: () -> Unit) {
     }
 }
 
-/** Red banner with [text]; shows a "Try again" button when [onRetry] is given. */
+/**
+ * Red banner with [text]; shows a "Try again" button when [onRetry] is given.
+ * @param text warning text
+ * @param onRetry called by "Try again", or null
+ */
 @Composable
 private fun Warning(text: String, onRetry: (() -> Unit)? = null) {
     Column(
@@ -342,7 +342,11 @@ private fun Warning(text: String, onRetry: (() -> Unit)? = null) {
     }
 }
 
-/** A bold heading with its [content] below. */
+/**
+ * A bold heading with its [content] below.
+ * @param title heading
+ * @param content section content
+ */
 @Composable
 private fun Section(title: String, content: @Composable () -> Unit) {
     Column(modifier = Modifier.fillMaxWidth()) {
@@ -351,9 +355,17 @@ private fun Section(title: String, content: @Composable () -> Unit) {
     }
 }
 
-/** Debug lines: map name, localization, SDK control, what the robot is doing, and who is steering it. */
+/**
+ * Debug lines: map name, localization, SDK control, what the robot is doing, and who is steering it.
+ * @param state navigation state, or null
+ */
 @Composable
 private fun StatusLines(state: NavState?) {
+    /**
+     * Text for a yes/no value.
+     * @param value value, or null
+     * @return the text
+     */
     fun yesNo(value: Boolean?) = UiText.get(
         when (value) { true -> "nav.label.yes"; false -> "nav.label.no"; null -> "nav.label.unknown" }
     )
@@ -362,7 +374,6 @@ private fun StatusLines(state: NavState?) {
         Text(
             UiText.get("nav.label.localized", "state" to yesNo(state?.localized), "sdk" to yesNo(state?.sdkControl)),
             fontSize = 13.sp,
-            // Without localization the robot refuses to drive, so it is worth showing in red.
             color = if (state?.localized == false) RoboGuardColors.Danger else Color.Unspecified
         )
         Text(UiText.get("nav.label.navigation", "state" to state?.navState.orEmpty()), fontSize = 13.sp)
@@ -379,8 +390,11 @@ private fun StatusLines(state: NavState?) {
 }
 
 /**
- * The robot's map with its position, places and private areas. A tap sends "point" to the robot, which adds a target
- * or, while an area is being drawn, a corner.
+ * The robot's map with its position, places and private areas; a tap sends a point to the robot.
+ * @param state navigation state, or null
+ * @param info map placement, or null
+ * @param image map picture, or null
+ * @param onTap called with the tapped map coordinates
  */
 @Composable
 private fun MapView(
@@ -417,10 +431,19 @@ private fun MapView(
             contentScale = ContentScale.Fit
         )
         Canvas(modifier = Modifier.fillMaxSize()) {
+            /**
+             * Maps a world x to a pixel x.
+             * @param x x in metres
+             * @return the pixel x
+             */
             fun px(x: Double) = ((x - info.minX) / (info.maxX - info.minX) * size.width).toFloat()
+            /**
+             * Maps a world y to a pixel y.
+             * @param y y in metres
+             * @return the pixel y
+             */
             fun py(y: Double) = ((info.maxY - y) / (info.maxY - info.minY) * size.height).toFloat()
 
-            // Private areas in red; one the robot may currently cross in orange, so a granted permission is visible.
             state?.areas.orEmpty().forEach { area ->
                 if (area.corners.size < 2) return@forEach
                 val path = Path().apply {
@@ -453,7 +476,6 @@ private fun MapView(
                 drawCircle(RoboGuardColors.Header, radius = 10f, style = Stroke(width = 3f), center = Offset(px(it.x), py(it.y)))
             }
 
-            // The robot: a dot with a line in its heading direction.
             state?.pose?.let { pose ->
                 val center = Offset(px(pose.x), py(pose.y))
                 drawCircle(Color.Black, radius = 7f, center = center)
@@ -468,7 +490,12 @@ private fun MapView(
     }
 }
 
-/** Private areas: create, delete, and end a temporary crossing permission early. */
+/**
+ * Private areas: create, delete, and end a temporary crossing permission early.
+ * @param state navigation state, or null
+ * @param onAction sends an action with an area name
+ * @param onAsk asks for a new area name
+ */
 @Composable
 private fun PrivateAreas(
     state: NavState?,
@@ -485,7 +512,7 @@ private fun PrivateAreas(
                 Column(modifier = Modifier.weight(1f)) {
                     Text(area.name, fontSize = 13.sp)
                     area.allowedUntil?.let { until ->
-                        // Counted against the ROBOT's clock, so the countdown does not depend on the phone's time.
+                        // Counted against the robot's clock, not the phone's.
                         val left = ((until - (state?.now ?: 0L)) / 1000).coerceAtLeast(0)
                         Text(
                             UiText.get("nav.label.area_allowed", "time" to "%d:%02d".format(left / 60, left % 60)),
@@ -526,7 +553,12 @@ private fun PrivateAreas(
     }
 }
 
-/** The robot's "may I cross this area?" question, answered from the phone. */
+/**
+ * The robot's "may I cross this area?" question, answered from the phone.
+ * @param area area name
+ * @param onAllow called with the allowed minutes
+ * @param onDeny called on "No"
+ */
 @Composable
 private fun CrossingDialog(area: String, onAllow: (Int) -> Unit, onDeny: () -> Unit) {
     var minutes by remember { mutableStateOf(5) }
@@ -567,7 +599,12 @@ private fun CrossingDialog(area: String, onAllow: (Int) -> Unit, onDeny: () -> U
     )
 }
 
-/** Asks for a name (saved position, private area) and lets the robot check it — names must be unique there. */
+/**
+ * Asks for a name (saved position, private area); the robot checks that it is unique.
+ * @param title dialog title
+ * @param onCancel called on cancel
+ * @param onConfirm called with the entered name
+ */
 @Composable
 private fun NameDialog(title: String, onCancel: () -> Unit, onConfirm: (String) -> Unit) {
     var text by remember { mutableStateOf("") }
